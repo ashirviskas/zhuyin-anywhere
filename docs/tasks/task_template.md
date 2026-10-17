@@ -137,6 +137,7 @@ graph TD
 
 - Run `node --check zhuyin-anywhere.user.js`.
 - Bump `@version` in the metadata block when behaviour changes, so Violentmonkey picks up the update.
+- Add an entry to `CHANGELOG.md` (commit hash, date, changes) under the version it ships in, `Unreleased` if none. Fill in the hash once the user has committed.
 - Test in Violentmonkey on Firefox and, when the change touches browser APIs, on Chrome too. A local test page in `./tmp/` opened as `file:///` works: the script matches local files.
 - if UI/UX changed, make sure to show specific changes and give paths to screenshots. Keep them in `./tmp/`.
 - if UI/UX changed, regenerate the README images: `cd tools/assets && node build.js` (setup in `tools/assets/README.md`), and check that popups still fit their crops.
