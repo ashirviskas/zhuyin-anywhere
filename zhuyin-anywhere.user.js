@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         注音 anywhere (Traditional Mandarin → zhuyin + select-to-translate)
 // @namespace    local.zhuyin-anywhere
-// @version      0.4.0
+// @version      0.4.1
 // @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its CC-CEDICT gloss; select text to get an English translation.
 // @match        *://*/*
+// @match        file:///*
 // @noframes
 // @homepageURL  https://github.com/ashirviskas/zhuyin-anywhere
 // @downloadURL  https://raw.githubusercontent.com/ashirviskas/zhuyin-anywhere/main/zhuyin-anywhere.user.js
@@ -73,7 +74,8 @@
     debug: false,
   };
   const log = (...a) => CFG.debug && console.log('[zhuyin]', ...a);
-  const host = location.hostname;
+  // Local files have no hostname: they share one "local files" setting instead of colliding on ''.
+  const host = location.protocol === 'file:' ? 'local files' : location.hostname;
   const siteKey = 'site:' + host;
   const siteMode = () => GM_getValue(siteKey, 'auto'); // 'auto' | 'on' | 'off'
 
@@ -804,7 +806,7 @@
     menuIds.splice(0).forEach(id => { try { GM_unregisterMenuCommand(id); } catch {} });
     const m = siteMode();
     const next = { auto: 'on', on: 'off', off: 'auto' }[m];
-    menuIds.push(GM_registerMenuCommand(`This site: ${m} → ${next}`, () => {
+    menuIds.push(GM_registerMenuCommand(`${host === 'local files' ? 'Local files' : 'This site'}: ${m} → ${next}`, () => {
       GM_setValue(siteKey, next);
       if (next === 'off') stop(); else if (next === 'on' || sniff()) start();
       buildMenu();
