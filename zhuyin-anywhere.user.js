@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         注音 anywhere (Traditional Mandarin → zhuyin + select-to-translate)
 // @namespace    local.zhuyin-anywhere
-// @version      0.6.0
-// @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its CC-CEDICT gloss; select text to get an English translation. Speaker buttons read words and selections aloud in Taiwan Mandarin.
+// @version      0.7.0
+// @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its meaning (CC-CEDICT, or Google in other languages); select text to translate it into English, Lithuanian or another language. Speaker buttons read words and selections aloud in Taiwan Mandarin. ⚙ on the popups opens the settings.
 // @match        *://*/*
 // @match        file:///*
 // @noframes
@@ -45,15 +45,19 @@
  *     injection, so 10 MB there would cost every site load. Entries are sorted so the one matching the
  *     zhuyin on the page comes first (incl. CEDICT's "Taiwan pr. [...]" notes). A segmenter word that
  *     CEDICT doesn't have (IME phrases like 最好的) is split into CEDICT words for the card and word list.
- *  6. Selection → English popup (shadow DOM, isolated from page CSS). Google gtx endpoint by default,
- *     or yt-zhuyin's local asr_server /translate (opus-mt) if you run it.
+ *  6. Selection → translation popup (shadow DOM, isolated from page CSS) in the target language. Google
+ *     gtx endpoint by default, or yt-zhuyin's local asr_server /translate (opus-mt, English only). With
+ *     a target other than English the hover card and the word list are Google too (one batched request),
+ *     as CC-CEDICT is English-only. "Hide meaning" blurs every translation until the reveal key is held.
  *  7. Read aloud: speaker button on both popups. Google's zh-TW voice (Taiwan Mandarin) as MP3, played
  *     through Web Audio, which page CSP media-src can't block. Offline or refused → the browser's own
  *     voice (speechSynthesis). Every row of the selection word list has its own speaker.
  *  8. Google translations and voice clips are cached in the page origin's IndexedDB (cacheMB per site, LRU).
  *  9. Touch: a tap opens a word's card; a long-press selection translates once it settles.
+ * 10. Settings: one table (SETTINGS) drives both the Violentmonkey menu and the ⚙ panel in the popups.
  *
- * Hotkeys: Alt+Z show/hide zhuyin · Alt (held) + hover shows gloss in 'alt' mode · Alt+T translate selection (when autoTranslate is off) · Esc closes popup and stops reading aloud
+ * Hotkeys: Alt+Z show/hide zhuyin · Alt (held) + hover shows gloss in 'alt' mode · Alt+T translate selection (when autoTranslate is off) ·
+ *          R (configurable, Alt optional) read the open card or popup aloud · Shift (configurable, held) shows hidden meanings · Esc closes popups and stops reading aloud
  */
 
 (() => {
@@ -67,7 +71,8 @@
     showPolyphones: GM_getValue('poly', false),       // tint single chars whose reading is a guess among several
     translator: GM_getValue('translator', 'google'),  // 'google' | 'local'
     localServer: 'http://127.0.0.1:8765',             // yt-zhuyin asr_server.py
-    targetLang: 'en',
+    targetLang: GM_getValue('targetLang', 'en'),     // Google language code; CC-CEDICT senses only for 'en'
+    targetLang2: GM_getValue('targetLang2', ''),     // optional second language, shown under the first; '' = none
     autoTranslate: GM_getValue('autoTranslate', true),// popup on every CJK selection; false = Alt+T only
     pinyin: GM_getValue('pinyin', false),             // selection popup: pinyin line, and pinyin instead of zhuyin in the word list
     compactChrome: GM_getValue('compactChrome', true),// buttons + fixed/sticky boxes (popups, headers): zhuyin hidden, gloss on hover
@@ -75,6 +80,9 @@
     theme: GM_getValue('theme', 'auto'),              // popups: 'auto' (follows the system) | 'dark' | 'light'
     cacheMB: GM_getValue('cacheMB', 100),             // Google translations + voice kept in IndexedDB, per site; 0 = off
     gloss: GM_getValue('gloss', 'hover'),             // 'hover' | 'alt' (hold Alt while hovering) | 'off' (plain title tooltip)
+    hideMeaning: GM_getValue('hideMeaning', false),   // popups open, but translations stay blurred until revealKey is held
+    revealKey: GM_getValue('revealKey', 'Shift'),     // KeyboardEvent.key: 'Shift' | 'Alt' | 'Control'
+    speakKey: GM_getValue('speakKey', 'R'),           // 'R' or 'Alt+R': reads the open card or popup aloud (only while one is open)
     glossDelay: 220,                                  // ms of hover before the card shows
     glossHideDelay: 400,                              // ms off the word and card before the card hides
     glossSlack: 40,                                   // px around the word and card that still count as on them
@@ -569,27 +577,70 @@
       onload: (r) => (r.status >= 200 && r.status < 300 ? resolve(opts.responseType ? r.response : r.responseText) : reject(new Error('HTTP ' + r.status))),
       onerror: () => reject(new Error('network error')), ontimeout: () => reject(new Error('timeout')) }));
   }
-  async function translate(text) {
-    const key = CFG.translator + '|' + text;
+  // Every target language Google Translate offers (codes as its gtx endpoint takes them), English and
+  // Lithuanian first. The menu prompt also takes any other code.
+  const LANGS = [['en', 'English'], ['lt', 'Lithuanian'], ...`af Afrikaans|sq Albanian|am Amharic|ar Arabic|hy Armenian|as Assamese|ay Aymara|
+    az Azerbaijani|bm Bambara|eu Basque|be Belarusian|bn Bengali|bho Bhojpuri|bs Bosnian|bg Bulgarian|ca Catalan|ceb Cebuano|
+    ny Chichewa|zh-CN Chinese (Simplified)|co Corsican|hr Croatian|cs Czech|da Danish|dv Dhivehi|doi Dogri|nl Dutch|eo Esperanto|
+    et Estonian|ee Ewe|tl Filipino|fi Finnish|fr French|fy Frisian|gl Galician|ka Georgian|de German|el Greek|gn Guarani|
+    gu Gujarati|ht Haitian Creole|ha Hausa|haw Hawaiian|iw Hebrew|hi Hindi|hmn Hmong|hu Hungarian|is Icelandic|ig Igbo|
+    ilo Ilocano|id Indonesian|ga Irish|it Italian|ja Japanese|jw Javanese|kn Kannada|kk Kazakh|km Khmer|rw Kinyarwanda|
+    gom Konkani|ko Korean|kri Krio|ku Kurdish (Kurmanji)|ckb Kurdish (Sorani)|ky Kyrgyz|lo Lao|la Latin|lv Latvian|ln Lingala|
+    lg Luganda|lb Luxembourgish|mk Macedonian|mai Maithili|mg Malagasy|ms Malay|ml Malayalam|mt Maltese|mi Maori|mr Marathi|
+    mni-Mtei Meiteilon (Manipuri)|lus Mizo|mn Mongolian|my Myanmar (Burmese)|ne Nepali|no Norwegian|or Odia|om Oromo|ps Pashto|
+    fa Persian|pl Polish|pt Portuguese|pa Punjabi|qu Quechua|ro Romanian|ru Russian|sm Samoan|sa Sanskrit|gd Scots Gaelic|
+    nso Sepedi|sr Serbian|st Sesotho|sn Shona|sd Sindhi|si Sinhala|sk Slovak|sl Slovenian|so Somali|es Spanish|su Sundanese|
+    sw Swahili|sv Swedish|tg Tajik|ta Tamil|tt Tatar|te Telugu|th Thai|ti Tigrinya|ts Tsonga|tr Turkish|tk Turkmen|ak Twi|
+    uk Ukrainian|ur Urdu|ug Uyghur|uz Uzbek|vi Vietnamese|cy Welsh|xh Xhosa|yi Yiddish|yo Yoruba|zu Zulu`
+    .split('|').map(x => { x = x.trim(); const k = x.indexOf(' '); return [x.slice(0, k), x.slice(k + 1)]; })];
+  const langName = (c) => LANGS.find(l => l[0] === c)?.[1] ?? c;
+  const langs = () => [...new Set([CFG.targetLang, CFG.targetLang2].filter(Boolean))];
+  const translator = (lang) => (CFG.translator === 'local' && lang === 'en' ? 'local' : 'google');   // opus-mt only knows English
+  const viaText = () => {
+    const ls = langs(), by = [...new Set(ls.map(l => (translator(l) === 'local' ? 'local opus-mt' : 'Google')))].join(' + ');
+    return by + (ls.join() === 'en' ? '' : ' · ' + ls.map(langName).join(' + '));
+  };
+  // With two languages every translation line carries a small language tag.
+  const langTag = (l) => (langs().length > 1 ? el('span', 'lg', l.toUpperCase()) : '');
+
+  // The language is passed in, not read from CFG: a switch mid-request mustn't file the answer under the new one.
+  const google = async (text, lang) => {
+    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=' + encodeURIComponent(lang) +
+      '&dt=t&q=' + encodeURIComponent(text);
+    const body = await gmFetch({ method: 'GET', url });
+    let j; try { j = JSON.parse(body); } catch { throw new Error('Google returned a non-JSON page (rate-limited / captcha?)'); }
+    return (j[0] || []).map(seg => seg[0]).join('');
+  };
+  const putTr = (k, v) => cachePut(k, v, 2 * (k.length + v.length));
+  async function translate(text, lang) {
+    const tr = translator(lang), key = tr + '|' + lang + '|' + text;
     if (tCache.has(key)) return tCache.get(key);
     let out;
-    if (CFG.translator === 'local') {
+    if (tr === 'local') {
       const r = JSON.parse(await gmFetch({ method: 'POST', url: CFG.localServer + '/translate',
         headers: { 'Content-Type': 'application/json' }, data: JSON.stringify({ lines: [text] }) }));
       out = r.lines?.[0] ?? '';
     } else {
-      const k = 'tr|' + CFG.targetLang + '|' + text;
+      const k = 'tr|' + lang + '|' + text;
       out = await cacheGet(k);
-      if (out === undefined) {
-        const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=' + CFG.targetLang +
-          '&dt=t&q=' + encodeURIComponent(text);
-        const body = await gmFetch({ method: 'GET', url });
-        let j; try { j = JSON.parse(body); } catch { throw new Error('Google returned a non-JSON page (rate-limited / captcha?)'); }
-        out = (j[0] || []).map(seg => seg[0]).join('');
-        cachePut(k, out, 2 * (k.length + out.length));
-      }
+      if (out === undefined) { out = await google(text, lang); putTr(k, out); }
     }
     tCache.set(key, out);
+    return out;
+  }
+  // Words for the hover card and the word list, Google only: the ones not cached go in one request, one
+  // per line; Google keeps the lines apart. If it ever merges lines, each word is asked on its own.
+  async function translateWords(words, lang) {
+    const mk = (w) => 'google|' + lang + '|' + w, dk = (w) => 'tr|' + lang + '|' + w;
+    const out = await Promise.all(words.map(async (w) => tCache.get(mk(w)) ?? cacheGet(dk(w))));
+    const miss = words.filter((w, i) => out[i] === undefined);
+    if (miss.length) {
+      const lines = (await google(miss.join('\n'), lang)).split('\n').map(l => l.trim());
+      const got = lines.length === miss.length ? lines : await Promise.all(miss.map(w => google(w, lang)));
+      miss.forEach((w, i) => putTr(dk(w), got[i]));
+      let m = 0; out.forEach((v, i) => { if (v === undefined) out[i] = got[m++]; });
+    }
+    words.forEach((w, i) => tCache.set(mk(w), out[i]));
     return out;
   }
 
@@ -688,9 +739,10 @@
   // Popup lives in a closed shadow root: page CSS can't touch it, and our CSS can't leak out.
   // Dark by default; the light rules apply under the host's data-theme (auto: when the system is light).
   const LIGHT = (host) => `.box{color:#1a1a1a;background:rgba(252,252,252,.97);border-color:rgba(0,0,0,.1)}
-    .src{color:#555}.hw .zy{color:#333}.py,.wl .p,.hw .pyl,.ent .epy{color:#1a5fb4}.ent .tag{color:#1a5fb4;background:rgba(26,95,180,.1)}
+    .src{color:#555}.hw .zy{color:#333}.py,.wl .p,.hw .pyl,.ent .epy{color:#1a5fb4}.ent .tag,.lg{color:#1a5fb4;background:rgba(26,95,180,.1)}
     button{background:rgba(0,0,0,.06);color:#222}button:hover{background:rgba(0,0,0,.12)}
-    .say.on{color:#1a5fb4;background:rgba(26,95,180,.12)}`
+    .say.on{color:#1a5fb4;background:rgba(26,95,180,.12)}.box{color-scheme:light}
+    .seg button.on{color:#fff;background:#1a5fb4}.set select,.set input{background:rgba(0,0,0,.06);color:#222}`
     .replace(/([^{}]+)\{/g, (_, sel) => sel.split(',').map(x => host + ' ' + x.trim()).join(',') + '{');
   let pop = null;
   function popup() {
@@ -699,14 +751,19 @@
     hostEl.style.cssText = 'all:initial;position:fixed;z-index:2147483647;top:0;left:0;width:0;height:0';
     hostEl.dataset.theme = CFG.theme;
     const sh = hostEl.attachShadow({ mode: 'closed' });
-    sh.innerHTML = `<style>
-      .box{position:fixed;max-width:min(460px,calc(100vw - 24px));padding:10px 12px;border-radius:10px;display:none;
+    // Built with DOM calls and a <style> element, not innerHTML: pages that enforce Trusted Types block
+    // innerHTML (also on a shadow root), and the popup would never appear there.
+    const css = el('style'); css.textContent = `
+      .box{position:fixed;max-width:min(460px,calc(100vw - 24px));padding:10px 12px;border-radius:10px;display:none;color-scheme:dark;
         font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#eee;background:rgba(22,22,24,.96);
         box-shadow:0 6px 28px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px)}
       .src{font-size:13px;color:#aaa;margin-bottom:6px;max-height:4.4em;overflow:hidden;font-family:"Noto Sans TC","PingFang TC",sans-serif}
       .py{font-size:12px;color:#8ab4f8;margin-bottom:6px;max-height:3em;overflow:hidden}
       .py:empty{display:none}
       .en{white-space:pre-wrap;word-break:break-word}
+      .en+.en{margin-top:4px}
+      .lg{font-size:10px;padding:0 4px;border-radius:4px;background:rgba(138,180,248,.18);color:#8ab4f8;margin-right:6px;vertical-align:1px}
+      .wl .d span+span::before{content:" · ";opacity:.5}
       .en.err{color:#ff8a80}
       .bar{display:flex;gap:6px;margin-top:8px;font-size:12px;color:#888;align-items:center}
       .bar span{flex:1}
@@ -733,31 +790,75 @@
       .ent .epy{color:#8ab4f8;font-size:12px;margin-right:6px}
       .ent .tag{font-size:10px;padding:0 4px;border-radius:4px;background:rgba(138,180,248,.18);color:#8ab4f8;margin-right:6px}
       .ent .defs{display:block}
-      .ent .defs span+span::before{content:" · ";opacity:.5}
+      .ent .defs span:not(.lg)+span::before,.part .m+.m::before{content:" · ";opacity:.5}
       .parts{margin-top:8px;padding-top:6px;border-top:1px solid rgba(127,127,127,.25);font-size:13px;opacity:.85}
       .parts b{font-weight:400;font-family:"Noto Sans TC","PingFang TC",sans-serif;font-size:17px;margin-right:6px}
       .part{padding:1px 4px;border-radius:4px;margin:0 -4px}
       .part.on{background:rgba(138,180,248,.16);opacity:1}
       .note{font-size:13px;opacity:.6;margin-top:4px}
       .foot{font-size:10px;opacity:.4;margin-top:6px;text-align:right}
+      .m{transition:filter .12s}
+      :host([data-hide]) .m{filter:blur(5px);-webkit-user-select:none;user-select:none;cursor:pointer}
+      .cfg{display:inline-flex;align-items:center;padding:2px 5px}
+      .gl .cfg{position:absolute;top:6px;right:6px;background:none;opacity:.45}
+      .gl .cfg:hover{opacity:1}
+      .gl .hw{padding-right:22px}
+      .gl .tl{font-size:17px;margin:2px 0 4px}
+      .set{width:min(380px,calc(100vw - 24px));box-sizing:border-box;max-height:calc(100vh - 16px);overflow:auto;font-size:13px}
+      .set .ttl{display:flex;align-items:center;font-weight:600;margin-bottom:8px}
+      .set .ttl span{flex:1}
+      .set .row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:4px 0}
+      .set .row+.row{border-top:1px solid rgba(127,127,127,.15)}
+      .set .hint{grid-column:1/-1;font-size:11px;opacity:.55;margin-top:-2px}
+      .seg{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:2px}
+      .seg button.on{color:#111;background:#8ab4f8}
+      .set select,.set input{font:inherit;font-size:12px;color:#ddd;background:rgba(255,255,255,.08);border:0;border-radius:6px;padding:3px 6px}
+      .set input{width:5em}
       @media (prefers-color-scheme: light){${LIGHT(':host([data-theme=auto])')}}
       ${LIGHT(':host([data-theme=light])')}
-    </style>
-    <div class="box tr"><div class="src"></div><div class="py"></div><div class="en"></div><div class="words"></div>
-      <div class="bar"><span class="via"></span><button class="say" title="Read aloud"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button><button class="cp">copy</button><button class="x">✕</button></div></div>
-    <div class="box gl"></div>`;
+    `;
+    const icon = (...paths) => {
+      const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
+      for (const [k, v] of Object.entries({ viewBox: '0 0 16 16', width: 14, height: 14, fill: 'currentColor', 'aria-hidden': 'true' })) svg.setAttribute(k, v);
+      for (const at of paths) { const pa = document.createElementNS(NS, 'path'); for (const [k, v] of Object.entries(at)) pa.setAttribute(k, v); svg.append(pa); }
+      return svg;
+    };
+    const btn = (cls, title, child) => { const b = el('button', cls); if (title) b.title = title; b.append(child); return b; };
+    const bar = el('div', 'bar');
+    bar.append(el('span', 'via'),
+      btn('say', 'Read aloud', icon({ d: 'M2 6h3l4-3v10l-4-3H2z' },
+        { d: 'M11 5.5a3.5 3.5 0 0 1 0 5', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round' })),
+      btn('cp', null, 'copy'),
+      btn('cfg', 'Settings', icon({ 'fill-rule': 'evenodd', d: 'M6.9 1h2.2l.4 1.9 1.2.5 1.6-1.1 1.6 1.6-1.1 1.6.5 1.2 1.9.4v2.2l-1.9.4-.5 1.2 1.1 1.6-1.6 1.6-1.6-1.1-1.2.5-.4 1.9H6.9l-.4-1.9-1.2-.5-1.6 1.1-1.6-1.6 1.1-1.6-.5-1.2L1 9.1V6.9l1.9-.4.5-1.2-1.1-1.6 1.6-1.6 1.6 1.1 1.2-.5zM8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z' })),
+      btn('x', null, '✕'));
+    const tr = el('div', 'box tr');
+    tr.append(el('div', 'src'), el('div', 'py'), el('div', 'tx'), el('div', 'words'), bar);
+    sh.append(css, tr, el('div', 'box gl'), el('div', 'box set'));
     document.documentElement.appendChild(hostEl);
     const $ = (s) => sh.querySelector(s);
-    pop = { hostEl, box: $('.tr'), gl: $('.gl'), src: $('.src'), py: $('.py'), en: $('.en'), via: $('.via'), words: $('.words'), say: $('.say') };
+    pop = { hostEl, box: $('.tr'), gl: $('.gl'), set: $('.set'), src: $('.src'), py: $('.py'), tx: $('.tx'), via: $('.via'), words: $('.words'), say: $('.say'), cfg: $('.cfg') };
     $('.x').onclick = hidePopup;
-    $('.cp').onclick = () => GM_setClipboard(pop.en.textContent);
+    $('.cp').onclick = () => GM_setClipboard([...pop.tx.querySelectorAll('.t')].map(t => t.textContent).join('\n'));
     pop.say.onclick = () => speak(pop.src.textContent, pop.say);
-    pop.box.addEventListener('mousedown', (e) => e.stopPropagation());
-    pop.gl.addEventListener('mousedown', (e) => e.stopPropagation());
+    pop.cfg.onclick = () => openSettings(pop.box.getBoundingClientRect());
+    for (const b of [pop.box, pop.gl, pop.set]) b.addEventListener('mousedown', (e) => e.stopPropagation());
+    // Holding the pointer on a blurred meaning reveals it too: touch has no reveal key.
+    sh.addEventListener('pointerdown', (e) => { if (e.target.closest('.m')) { revealPtr = true; reveal(); } });
+    addEventListener('pointerup', () => { if (revealPtr) { revealPtr = false; reveal(); } }, true);
+    addEventListener('pointercancel', () => { if (revealPtr) { revealPtr = false; reveal(); } }, true);
+    reveal();
     return pop;
   }
   function hidePopup() { if (pop) { pop.box.style.display = 'none'; if (playing && pop.box.contains(playing.btn)) stopSpeaking(); } }
   const sayBtn = (text) => { const b = pop.say.cloneNode(true); b.className = 'say'; b.title = 'Read aloud'; b.onclick = () => speak(text, b); return b; };
+  const cfgBtn = (onclick) => { const b = pop.cfg.cloneNode(true); b.onclick = onclick; return b; };
+  const shown = (b) => pop?.[b].style.display === 'block';
+
+  // "Hide meaning": translations carry class .m and are blurred unless the reveal key or the pointer is held.
+  let revealKeyDown = false, revealPtr = false;
+  const reveal = () => pop?.hostEl.toggleAttribute('data-hide', CFG.hideMeaning && !revealKeyDown && !revealPtr);
+  const KEY_NAMES = { Shift: 'Shift', Alt: 'Alt', Control: 'Ctrl' };
+  const holdHint = () => (CFG.hideMeaning ? ' · hold ' + KEY_NAMES[CFG.revealKey] : '');
 
   // The segmenter's words come from an IME dictionary, which also lists phrases for typing (我在, 最好的).
   // Where CC-CEDICT has no such word, the card and the word list split it into the fewest CC-CEDICT
@@ -831,30 +932,36 @@
   }, true);
 
   let reqId = 0;
-  // Short selections: one row per dictionary word — reading as on the page + its best CEDICT sense.
+  // Short selections: one row per dictionary word — reading as on the page, then per target language its
+  // best CEDICT sense (English) or Google's translation (any other language, all words in one request).
   async function fillWordList(text, id, rect) {
     if (CFG.gloss === 'off') return;
     const han = text.match(HAN_RUN)?.join('') ?? '';
     if (!han || [...han].length > CFG.selWordList) return;
     try { await loadCedict(); } catch { return; }
     if (id !== reqId) return;
-    const D = loadDict(), seen = new Set(), grid = document.createElement('div'); grid.className = 'wl';
+    const D = loadDict(), ls = langs(), seen = new Set(), grid = el('div', 'wl'), words = [];
+    const goog = new Map(ls.filter(l => l !== 'en').map(l => [l, []]));   // language → cells waiting for Google
     for (const run of text.match(HAN_RUN)) for (const w of segment([...run], D)) for (const [a, b] of ceSplit(w.chars)) {
       const word = w.chars.slice(a, b).join('');
-      if (seen.has(word)) continue; seen.add(word);
+      if (seen.has(word)) continue; seen.add(word); words.push(word);
       const zys = w.zy[0] === null ? null : w.zy.slice(a, b);
-      const e = lookup(word, zys)[0], def = e ? shortDef(e) : '';
-      const cell = (cls, t) => { const d = document.createElement('span'); d.className = cls; d.textContent = t; grid.appendChild(d); };
-      grid.appendChild(sayBtn(word));
-      cell('h', word);
-      cell('p', !CFG.pinyin ? (zys ? zys.map(normZhuyin).join(' ') : '')
-        : zys ? zys.map(zhuyinToPinyin).join('') : (e ? numToMarked(e.num).replace(/ /g, '') : ''));
-      cell('d', def || '—');
+      const e = lookup(word, zys)[0], d = el('span', 'd m');
+      for (const l of ls) { const c = el('span', null, l === 'en' ? (e && shortDef(e)) || '—' : '…'); d.append(c); goog.get(l)?.push(c); }
+      grid.append(sayBtn(word), el('span', 'h', word), el('span', 'p', !CFG.pinyin ? (zys ? zys.map(normZhuyin).join(' ') : '')
+        : zys ? zys.map(zhuyinToPinyin).join('') : (e ? numToMarked(e.num).replace(/ /g, '') : '')), d);
     }
     if (!grid.childElementCount) return;
     pop.words.replaceChildren(grid); pop.words.style.display = 'block';
     place(rect);
+    if (!goog.size) return;
+    await Promise.all([...goog].map(async ([l, cells]) => {
+      try { const out = await translateWords(words, l); cells.forEach((c, i) => { c.textContent = out[i] || '—'; }); }
+      catch (e) { cells.forEach((c) => { c.textContent = '—'; c.title = 'Translation failed: ' + e.message; }); }
+    }));
+    if (id === reqId) place(rect);
   }
+  let selRect = null;
   async function translateSelection(force = false) {
     const sel = getSelection();
     if (!sel || sel.isCollapsed || !sel.rangeCount) return;
@@ -862,26 +969,32 @@
     const text = selectionText(sel).replace(/\s+/g, ' ').trim();
     if (!text || text.length > 4500) return;
     if (!force && !HAN.test(text)) return;
-    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    showTranslation(text, sel.getRangeAt(0).getBoundingClientRect());
+  }
+  // One line per target language. Also called again by the settings when a language, the translator or pinyin changes.
+  async function showTranslation(text, rect) {
+    selRect = rect;
     const p = popup(), id = ++reqId;
     p.src.textContent = text;
     try { p.py.textContent = CFG.pinyin && text.length <= 300 ? pinyinOf(text) : ''; } catch { p.py.textContent = ''; }
-    p.en.className = 'en'; p.en.textContent = '…';
-    p.via.textContent = CFG.translator === 'local' ? 'local opus-mt' : 'Google';
+    const lines = langs().map((l) => { const t = el('span', 't', '…'), d = el('div', 'en m'); d.append(langTag(l), t); return [l, d, t]; });
+    p.tx.replaceChildren(...lines.map(x => x[1]));
+    p.via.textContent = viaText() + holdHint();
     p.words.replaceChildren(); p.words.style.display = 'none';
     hideGloss();   // a card opened before the popup wasn't placed clear of it (Alt+T while hovering)
     place(rect);
     fillWordList(text, id, rect);
-    try {
-      const en = await translate(text);
-      if (id !== reqId) return;
-      p.en.textContent = en || '(empty)';
-    } catch (e) {
-      if (id !== reqId) return;
-      p.en.className = 'en err';
-      p.en.textContent = 'Translation failed: ' + e.message + (CFG.translator === 'local' ? ' — is asr_server.py running?' : '');
-    }
-    place(rect);
+    await Promise.all(lines.map(async ([l, d, t]) => {
+      try {
+        const out = await translate(text, l);
+        if (id === reqId) t.textContent = out || '(empty)';
+      } catch (e) {
+        if (id !== reqId) return;
+        d.className = 'en err';
+        t.textContent = 'Translation failed: ' + e.message + (translator(l) === 'local' ? ' — is asr_server.py running?' : '');
+      }
+    }));
+    if (id === reqId) place(rect);
   }
 
   // ---------------------------------------------------------------- hover gloss
@@ -912,10 +1025,13 @@
   }
 
   // Meaning-only card: the word's senses for the reading shown on the page, then what the hovered
-  // character means on its own. No pinyin — the zhuyin is already on the page.
+  // character means on its own, for each target language: CC-CEDICT for English, Google for the others
+  // (CC-CEDICT still decides where the word ends). No pinyin — the zhuyin is already on the page.
+  let glossReq = 0;
   async function showGloss(w, cc = null) {
-    const p = popup();
+    const p = popup(), req = ++glossReq;
     glossWord = w; glossChar = cc;
+    const stale = () => req !== glossReq || glossWord !== w;   // hidden or moved on while Google answered
     let cells = [...w.querySelectorAll('zy-c')];
     let chars = cells.map(c => c.firstChild?.nodeValue ?? '');
     let zys = (w.dataset.zy || '').split(' ').filter(Boolean);
@@ -945,41 +1061,71 @@
     // shows for compact (UI) text or when hidden with Alt+Z.
     if (known)
       hw.append(el('span', 'zy', zys.map(normZhuyin).join(' ')));
-    p.gl.replaceChildren(hw);
+    p.gl.replaceChildren(hw, cfgBtn(() => { const r = p.gl.getBoundingClientRect(); hideGloss(); openSettings(r); }));
     const senses = (list) => {
       // Prefer the entries whose reading matches the page; fall back to everything if none do.
       const match = list.filter(e => e.score >= 3);
       return (match.length ? match : list).slice(0, CFG.glossMaxEntries);
     };
-    const ents = senses(lookup(word, known ? zys : null));
-    for (const e of ents) {
-      const defs = e.defs.filter(d => !PRON_ONLY.test(d)).map(d => fmtDef(d, false)).filter(Boolean);
-      if (!defs.length) continue;
-      const box = el('div', 'ent'), list = el('span', 'defs');
-      for (const d of defs.slice(0, CFG.glossMaxDefs)) list.append(el('span', null, d));
-      if (defs.length > CFG.glossMaxDefs) list.append(el('span', null, `+${defs.length - CFG.glossMaxDefs}`));
-      box.append(list); p.gl.append(box);
+    const ls = langs(), ents = ls.includes('en') ? senses(lookup(word, known ? zys : null)) : [];
+    const goog = new Map(ls.filter(l => l !== 'en').map(l => [l, [[word], []]]));   // language → [words, cells] for Google
+    for (const l of ls) {
+      if (l !== 'en') {
+        const t = el('span', 't', '…'), line = el('div', 'tl m');
+        line.append(langTag(l), t); p.gl.append(line); goog.get(l)[1].push(t);
+        continue;
+      }
+      let tag = langTag('en');
+      for (const e of ents) {
+        const defs = e.defs.filter(d => !PRON_ONLY.test(d)).map(d => fmtDef(d, false)).filter(Boolean);
+        if (!defs.length) continue;
+        const box = el('div', 'ent m'), list = el('span', 'defs');
+        list.append(tag); tag = '';
+        for (const d of defs.slice(0, CFG.glossMaxDefs)) list.append(el('span', null, d));
+        if (defs.length > CFG.glossMaxDefs) list.append(el('span', null, `+${defs.length - CFG.glossMaxDefs}`));
+        box.append(list); p.gl.append(box);
+      }
+      if (!ents.length) { const n = el('div', 'note'); n.append(langTag('en'), 'not in CC-CEDICT'); p.gl.append(n); }
     }
-    if (!ents.length) p.gl.append(el('div', 'note', 'not in CC-CEDICT'));
-    // Per-character meanings for compounds; the character under the cursor is highlighted.
+    // Per-character meanings for compounds, one per language; the character under the cursor is highlighted.
     // When CEDICT reads the word with a neutral tone the IME dictionary doesn't have (長得 zhang3 de5 vs
     // ㄓㄤˇ ㄉㄜˊ), the character is looked up with CEDICT's syllable, so 得 is the particle, not "obtain".
     if (chars.length > 1 && chars.length <= 8) {
       const parts = el('div', 'parts');
       const wordSyl = ents[0] && ents[0].score >= 1 ? numKey(ents[0].num).split(' ') : null;
       chars.forEach((ch, i) => {
-        const pageKey = known ? zyKey([zys[i]]) : null, ceKey = wordSyl?.[i];
-        const useCe = ceKey && pageKey && ceKey !== pageKey && ceKey.endsWith('5') && toneless(ceKey) === toneless(pageKey);
-        const x = senses(lookupKey(ch, useCe ? ceKey : pageKey))[0];
         const row = el('div', 'part' + (i === hi ? ' on' : ''));
-        row.append(el('b', null, ch), ' ' + (x ? shortDef(x, false) : '—'));
+        row.append(el('b', null, ch));
+        for (const l of ls) {
+          if (l === 'en') {
+            const pageKey = known ? zyKey([zys[i]]) : null, ceKey = wordSyl?.[i];
+            const useCe = ceKey && pageKey && ceKey !== pageKey && ceKey.endsWith('5') && toneless(ceKey) === toneless(pageKey);
+            const x = senses(lookupKey(ch, useCe ? ceKey : pageKey))[0];
+            row.append(el('span', 'm', x ? shortDef(x, false) : '—'));
+          } else {
+            const c = el('span', 'm', '…'); row.append(c);
+            const g = goog.get(l); g[0].push(ch); g[1].push(c);
+          }
+        }
         parts.append(row);
       });
       p.gl.append(parts);
     }
     if (w.dataset.alts && chars.length === 1) p.gl.append(el('div', 'note', 'other readings: ' + w.dataset.alts.split(' ').map(normZhuyin).join(' / ')));
-    p.gl.append(el('div', 'foot', 'CC-CEDICT · MDBG'));
+    p.gl.append(el('div', 'foot', [ls.includes('en') && 'CC-CEDICT · MDBG', goog.size && 'Google'].filter(Boolean).join(' · ') + holdHint()));
     place(rect, p.gl);
+    if (!goog.size) return;
+    await Promise.all([...goog].map(async ([l, [ws, cells]]) => {
+      try {
+        const out = await translateWords(ws, l);
+        if (!stale()) cells.forEach((c, i) => { c.textContent = out[i] || '—'; });
+      } catch (e) {
+        if (stale()) return;
+        cells.forEach((c) => { c.textContent = '—'; });
+        cells[0].textContent = 'Translation failed: ' + e.message;
+      }
+    }));
+    if (!stale()) place(rect, p.gl);
   }
 
   // Touch (Firefox for Android): no hover, so a tap on a word opens its card, and a selection made by
@@ -1028,11 +1174,21 @@
     if (!CFG.autoTranslate || siteMode() === 'off') return;
     clearTimeout(selTimer); selTimer = setTimeout(() => translateSelection(false), 180);
   }, true);
-  document.addEventListener('mousedown', (e) => { if (!pop || !e.composedPath().includes(pop.hostEl)) { hidePopup(); hideGloss(); } }, true);
-  document.addEventListener('keyup', (e) => { if (e.key === 'Alt' && CFG.gloss === 'alt' && hoverWord) e.preventDefault(); }, true);   // keep Firefox's menu bar shut
+  document.addEventListener('mousedown', (e) => { if (!pop || !e.composedPath().includes(pop.hostEl)) { hidePopup(); hideGloss(); hideSettings(); } }, true);
+  document.addEventListener('keyup', (e) => {
+    if (e.key === CFG.revealKey && revealKeyDown) { revealKeyDown = false; reveal(); }
+    // Alt alone toggles Firefox's menu bar on release: keep it shut when the Alt press was ours.
+    if (e.key === 'Alt' && ((CFG.gloss === 'alt' && hoverWord) || (CFG.hideMeaning && CFG.revealKey === 'Alt' && (shown('box') || shown('gl'))))) e.preventDefault();
+  }, true);
+  addEventListener('blur', () => { if (revealKeyDown) { revealKeyDown = false; reveal(); } });   // released in another window
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { hidePopup(); hideGloss(); stopSpeaking(); }
+    if (e.key === 'Escape') { hidePopup(); hideGloss(); hideSettings(); stopSpeaking(); }
+    if (e.key === CFG.revealKey && CFG.hideMeaning && !revealKeyDown) { revealKeyDown = true; reveal(); }   // no return: Alt may also open the card
     if (e.key === 'Alt' && CFG.gloss === 'alt' && hoverWord && !e.repeat) { e.preventDefault(); showGloss(hoverWord, null); return; }
+    // Read-aloud key, with or without Alt; Shift is allowed, it may be the reveal key. Only while a card or
+    // popup is open and not while typing, and then it's ours: the page's own shortcut on that letter doesn't fire.
+    if (e.code === 'Key' + CFG.speakKey.at(-1) && e.altKey === CFG.speakKey.startsWith('Alt+') && !e.ctrlKey && !e.metaKey &&
+        !e.repeat && (shown('gl') || shown('box')) && !typing(e)) { e.preventDefault(); e.stopPropagation(); speakOpen(); return; }
     if (!e.altKey || e.ctrlKey || e.metaKey) return;
     const k = e.code;
     if (k === 'KeyZ') {
@@ -1041,52 +1197,115 @@
       document.documentElement.classList.toggle('zyh-hidden');
     } else if (k === 'KeyT') { e.preventDefault(); translateSelection(true); }
   }, true);
+  // In a text field, or in the settings panel (its select jumps to options by letter). Events from inside
+  // the closed shadow root arrive retargeted to its host; a focused speaker button there is fine.
+  function typing(e) {
+    const t = e.composedPath()[0];
+    if (t === pop?.hostEl) return shown('set');
+    return t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+  }
+  // Read-aloud key: the word card if it's open, else the translation popup. A press is a click on that
+  // speaker, so a second press stops it.
+  function speakOpen() {
+    const b = shown('gl') ? pop.gl.querySelector('.hw .say') : shown('box') ? pop.say : null;
+    b?.click();
+  }
+
+  // ---------------------------------------------------------------- settings
+  // One table drives the Violentmonkey menu and the ⚙ panel. A row stores CFG[k] under GM key `gm ?? k`
+  // unless it has its own get/set; `apply` makes the change take effect on the open page.
+  // Controls: `opts` (few values: buttons, cycled in the menu), `list` (a select, a prompt in the menu), `num`.
+  const onOff = [[true, 'on'], [false, 'off']];
+  const retranslate = () => { if (shown('box')) showTranslation(pop.src.textContent, selRect); };
+  const SETTINGS = [
+    { label: host === 'local files' ? 'Local files' : 'This site', get: siteMode, set: (v) => GM_setValue(siteKey, v),
+      opts: [['auto', 'auto'], ['on', 'on'], ['off', 'off']], hint: 'auto: only pages that look like Traditional Chinese',
+      apply: (v) => { if (v === 'off') stop(); else if (v === 'on' || sniff()) start(); } },
+    { label: 'Translate to', k: 'targetLang', list: LANGS, free: true, ask: 'a Google language code or name (lt, en, Lithuanian…)', apply: () => { hideGloss(); retranslate(); },
+      hint: 'Not English: word cards and word lists are translated by Google too' },
+    { label: 'Second language', k: 'targetLang2', list: [['', 'none'], ...LANGS], free: true, ask: 'a Google language code or name, or none', apply: () => { hideGloss(); retranslate(); },
+      hint: 'Shown under the first in every popup' },
+    { label: 'Translator', k: 'translator', opts: [['google', 'Google'], ['local', 'local opus-mt']], apply: retranslate,
+      hint: 'local (yt-zhuyin asr_server.py) translates to English only' },
+    { label: 'Hide meaning', k: 'hideMeaning', opts: onOff, apply: () => { reveal(); retranslate(); },
+      hint: 'Popups still open and read aloud; translations stay blurred until the reveal key is held' },
+    { label: 'Reveal key', k: 'revealKey', opts: Object.entries(KEY_NAMES), apply: retranslate },
+    { label: 'Read aloud key', k: 'speakKey', ask: 'a letter, or Alt+ a letter (R, Alt+R…)', hint: 'Works while a word card or translation is open',
+      list: [...[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(c => [c, c]), ...[...'ABCDEFGHIJKLMNOPQRSUVWXY'].map(c => ['Alt+' + c, 'Alt+' + c])] },   // Alt+Z, Alt+T are taken
+    { label: 'Word gloss', k: 'gloss', opts: [['hover', 'hover'], ['alt', 'Alt'], ['off', 'off']], apply: hideGloss },
+    { label: 'Translate on select', k: 'autoTranslate', opts: [[true, 'on'], [false, 'Alt+T']] },
+    { label: 'Pinyin in translation', k: 'pinyin', opts: onOff, apply: retranslate },
+    { label: 'Layout', k: 'layout', opts: [['side', 'side'], ['top', 'top']],
+      apply: (v) => document.documentElement.classList.toggle('zyh-top', v === 'top') },
+    { label: 'Highlight polyphones', k: 'showPolyphones', gm: 'poly', opts: onOff,
+      apply: (v) => document.documentElement.classList.toggle('zyh-poly', v) },
+    { label: 'Buttons & popups', k: 'compactChrome', opts: [[true, 'compact'], [false, 'full zhuyin']], apply: () => { if (active) { stop(); start(); } } },
+    { label: 'Popup theme', k: 'theme', opts: [['auto', 'auto'], ['dark', 'dark'], ['light', 'light']], apply: (v) => { if (pop) pop.hostEl.dataset.theme = v; } },
+    { label: 'Cache, MB per site', k: 'cacheMB', num: true, hint: 'Google translations and voice clips; 0 = off' },
+  ];
+  const getCfg = (r) => (r.get ? r.get() : CFG[r.k]);
+  const valName = (r, v) => (r.opts ?? r.list)?.find(o => o[0] === v)?.[1] ?? (r.num && !v ? 'off' : String(v));
+  function setCfg(r, v) {
+    if (r.set) r.set(v); else { CFG[r.k] = v; GM_setValue(r.gm ?? r.k, v); }
+    r.apply?.(v);
+    buildMenu();
+    if (shown('set')) renderSettings();
+  }
+  // Menu prompt for a list or number row; null when cancelled or invalid.
+  function askCfg(r) {
+    const v = prompt(r.num ? `${r.label} (0 = off):` : `${r.label}: ${r.ask}`, getCfg(r));
+    if (v === null) return null;
+    if (r.num) return +v >= 0 ? +v : null;
+    const c = v.trim(), hit = r.list.find(o => o[0].toLowerCase() === c.toLowerCase() || o[1].toLowerCase() === c.toLowerCase());
+    return hit ? hit[0] : r.free && /^[a-zA-Z-]{2,10}$/.test(c) ? c : null;
+  }
+
+  function renderSettings() {
+    const ttl = el('div', 'ttl'), x = el('button', null, '✕');
+    x.onclick = hideSettings;
+    ttl.append(el('span', null, '注音 anywhere · settings'), x);
+    const rows = SETTINGS.map((r) => {
+      const row = el('div', 'row'), v = getCfg(r);
+      let ctl;
+      if (r.opts) {
+        ctl = el('span', 'seg');
+        for (const [ov, name] of r.opts) { const b = el('button', ov === v ? 'on' : null, name); b.onclick = () => setCfg(r, ov); ctl.append(b); }
+      } else if (r.list) {
+        ctl = el('select');
+        const list = r.list.some(o => o[0] === v) ? r.list : [[v, v], ...r.list];   // a code typed into the menu prompt
+        for (const [ov, name] of list) { const o = el('option', null, name); o.value = ov; ctl.append(o); }
+        ctl.value = v; ctl.onchange = () => setCfg(r, ctl.value);
+      } else {
+        ctl = el('input'); ctl.type = 'number'; ctl.min = '0'; ctl.value = v;
+        ctl.onchange = () => { if (ctl.value !== '' && +ctl.value >= 0) setCfg(r, +ctl.value); };
+      }
+      row.append(el('span', null, r.label), ctl);
+      if (r.hint) row.append(el('div', 'hint', r.hint));
+      return row;
+    });
+    pop.set.replaceChildren(ttl, ...rows);
+  }
+  // Next to the box whose ⚙ opened it (kept clear of an open translation popup), or top right from the menu.
+  function openSettings(rect) {
+    popup(); renderSettings();
+    place(rect ?? { left: innerWidth, top: 0, bottom: 0 }, pop.set);
+  }
+  function hideSettings() { if (pop) pop.set.style.display = 'none'; }
 
   // ---------------------------------------------------------------- menu
   const menuIds = [];
   function buildMenu() {
     menuIds.splice(0).forEach(id => { try { GM_unregisterMenuCommand(id); } catch {} });
-    const m = siteMode();
-    const next = { auto: 'on', on: 'off', off: 'auto' }[m];
-    menuIds.push(GM_registerMenuCommand(`${host === 'local files' ? 'Local files' : 'This site'}: ${m} → ${next}`, () => {
-      GM_setValue(siteKey, next);
-      if (next === 'off') stop(); else if (next === 'on' || sniff()) start();
-      buildMenu();
-    }));
-    menuIds.push(GM_registerMenuCommand(`Layout: ${CFG.layout} → ${CFG.layout === 'side' ? 'top' : 'side'}`, () => {
-      CFG.layout = CFG.layout === 'side' ? 'top' : 'side'; GM_setValue('layout', CFG.layout);
-      document.documentElement.classList.toggle('zyh-top', CFG.layout === 'top'); buildMenu();
-    }));
-    menuIds.push(GM_registerMenuCommand(`Highlight polyphones: ${CFG.showPolyphones ? 'on → off' : 'off → on'}`, () => {
-      CFG.showPolyphones = !CFG.showPolyphones; GM_setValue('poly', CFG.showPolyphones);
-      document.documentElement.classList.toggle('zyh-poly', CFG.showPolyphones); buildMenu();
-    }));
-    menuIds.push(GM_registerMenuCommand(`Buttons & popups: ${CFG.compactChrome ? 'compact → full zhuyin' : 'full zhuyin → compact'}`, () => {
-      CFG.compactChrome = !CFG.compactChrome; GM_setValue('compactChrome', CFG.compactChrome);
-      if (active) { stop(); start(); } buildMenu();
-    }));
-    const gNext = { hover: 'alt', alt: 'off', off: 'hover' }[CFG.gloss];
-    menuIds.push(GM_registerMenuCommand(`Word gloss: ${CFG.gloss} → ${gNext}`, () => {
-      CFG.gloss = gNext; GM_setValue('gloss', gNext); hideGloss(); buildMenu();
-    }));
-    menuIds.push(GM_registerMenuCommand(`Translator: ${CFG.translator} → ${CFG.translator === 'google' ? 'local' : 'google'}`, () => {
-      CFG.translator = CFG.translator === 'google' ? 'local' : 'google'; GM_setValue('translator', CFG.translator); buildMenu();
-    }));
-    menuIds.push(GM_registerMenuCommand(`Pinyin in translation: ${CFG.pinyin ? 'on → off' : 'off → on'}`, () => {
-      CFG.pinyin = !CFG.pinyin; GM_setValue('pinyin', CFG.pinyin); buildMenu();
-    }));
-    menuIds.push(GM_registerMenuCommand(`Translate on select: ${CFG.autoTranslate ? 'on → off (Alt+T)' : 'off → on'}`, () => {
-      CFG.autoTranslate = !CFG.autoTranslate; GM_setValue('autoTranslate', CFG.autoTranslate); buildMenu();
-    }));
-    const tNext = { auto: 'dark', dark: 'light', light: 'auto' }[CFG.theme];
-    menuIds.push(GM_registerMenuCommand(`Popup theme: ${CFG.theme} → ${tNext}`, () => {
-      CFG.theme = tNext; GM_setValue('theme', tNext); if (pop) pop.hostEl.dataset.theme = tNext; buildMenu();
-    }));
-    menuIds.push(GM_registerMenuCommand(`Cache: ${CFG.cacheMB ? CFG.cacheMB + ' MB per site' : 'off'} (change…)`, () => {
-      const v = prompt('Cache for Google translations and voice, in MB per site (0 = off):', CFG.cacheMB);
-      if (v === null || !(+v >= 0)) return;
-      CFG.cacheMB = +v; GM_setValue('cacheMB', CFG.cacheMB); buildMenu();
-    }));
+    menuIds.push(GM_registerMenuCommand('Settings…', () => openSettings(null)));
+    for (const r of SETTINGS) {
+      const v = getCfg(r);
+      if (r.opts) {
+        const [nv, nn] = r.opts[(r.opts.findIndex(o => o[0] === v) + 1) % r.opts.length];
+        menuIds.push(GM_registerMenuCommand(`${r.label}: ${valName(r, v)} → ${nn}`, () => setCfg(r, nv)));
+      } else {
+        menuIds.push(GM_registerMenuCommand(`${r.label}: ${valName(r, v)} (change…)`, () => { const nv = askCfg(r); if (nv !== null) setCfg(r, nv); }));
+      }
+    }
   }
 
   // ---------------------------------------------------------------- boot

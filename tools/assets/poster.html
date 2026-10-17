@@ -18,7 +18,7 @@
   *{box-sizing:border-box}
   html,body{margin:0}
   body{width:1500px;color:var(--ink);font:400 21px/1.55 var(--serif)}
-  body,#dark{
+  body,.night{
     background-color:var(--paper);
     /* 田字格: solid squares, dashed centre cross */
     background-image:
@@ -30,8 +30,8 @@
     background-position:-1px -1px,-1px -1px,0 0,0 0;
   }
   .wrap{padding:96px 90px 80px}
-  /* the dark-popup example sits on a night version of the sheet; its padding is the README crop's margin */
-  #dark{--paper:#1a221e;--grid:#3a5145;--ink:#a9bcb1;padding:36px;margin:-36px -36px 68px}
+  /* dark-mode examples sit on a night version of the sheet; its padding is the README crop's margin */
+  .night{--paper:#1a221e;--grid:#3a5145;--ink:#a9bcb1;padding:36px;margin:-36px -36px 68px}
 
   /* ---------- masthead ---------- */
   .mast{display:grid;grid-template-columns:auto 1fr;gap:56px;align-items:center;margin-bottom:96px}
@@ -163,21 +163,52 @@
       <h3>Select a sentence to translate it</h3>
       <p class="lede">Highlight any text and a box shows the English translation, plus a word-by-word breakdown for short phrases.</p>
       <div class="frame"><div class="crop" data-src="shots/select.png" data-x="20" data-y="152" data-w="620" data-h="320"></div></div>
-      <p class="cap" translate="no">Each word in the list has its zhuyin in blue and its own speaker button; the one at the bottom reads the whole selection. Pinyin can be switched on in the menu.</p>
+      <p class="cap" translate="no">Each word in the list has its zhuyin in blue and its own speaker button; the one at the bottom reads the whole selection. Pinyin can be switched on in the settings.</p>
     </div>
   </section>
 
   <!-- dark popups -->
-  <section class="pair" id="dark" style="align-items:end">
+  <section class="pair night" id="dark" style="align-items:end">
     <div class="feature">
       <h3>Dark popups</h3>
-      <p class="lede">The card and the translation box follow the system's light or dark setting, or can be set to either in the menu.</p>
+      <p class="lede">The card and the translation box follow the system's light or dark setting, or can be set to either in the settings.</p>
       <div class="frame"><div class="crop" data-src="shots/hover-dark.png" data-x="20" data-y="236" data-w="620" data-h="320"></div></div>
     </div>
     <div class="feature">
       <h3>&nbsp;</h3>
       <p class="lede">&nbsp;</p>
       <div class="frame"><div class="crop" data-src="shots/select-dark.png" data-x="20" data-y="152" data-w="620" data-h="320"></div></div>
+    </div>
+  </section>
+
+  <!-- two languages -->
+  <section class="feature">
+    <h3>Lithuanian, or any other language</h3>
+    <p class="lede">Pick the language to translate into, and a second one if you like. The card and the translation box show both.</p>
+    <div class="pair night" id="lang" style="align-items:start">
+      <div class="frame"><div class="crop" data-src="shots/hover-lang.png" data-x="20" data-y="160" data-w="620" data-h="320"></div></div>
+      <div class="frame"><div class="crop" data-src="shots/select-lang.png" data-x="20" data-y="152" data-w="620" data-h="320"></div></div>
+    </div>
+  </section>
+
+  <!-- hide meaning: blurred, then with the reveal key held -->
+  <section class="feature">
+    <h3>Hide the meaning</h3>
+    <p class="lede">Read and listen first; hold Shift to check the translation.</p>
+    <div class="pair night" id="hide">
+      <div class="frame"><div class="bar"><span class="tag">Hide meaning on</span></div>
+        <div class="crop" data-src="shots/hidden.png" data-x="20" data-y="152" data-w="620" data-h="320"></div></div>
+      <div class="frame"><div class="bar"><span class="tag">Shift held</span></div>
+        <div class="crop" data-src="shots/revealed.png" data-x="20" data-y="152" data-w="620" data-h="320"></div></div>
+    </div>
+  </section>
+
+  <!-- settings -->
+  <section class="feature">
+    <h3>Settings</h3>
+    <p class="lede">The ⚙ on the card and the translation box opens every setting at once.</p>
+    <div class="night" id="settings" style="width:max-content">
+      <div class="frame" style="width:384px"><div class="crop" data-src="shots/settings.png" data-x="253" data-y="3" data-w="380" data-h="664"></div></div>
     </div>
   </section>
 
@@ -192,7 +223,7 @@
   </section>
 
   <!-- compact -->
-  <section class="feature">
+  <section class="feature" id="compact">
     <h2>Pop-ups and buttons stay usable</h2>
     <p class="lede">Zhuyin makes text about 40% wider. Small boxes like newsletter pop-ups, buttons and sticky headers weren’t built for that, so there the symbols are hidden. Point at a word and they appear in the card instead.</p>
     <div class="pair">
