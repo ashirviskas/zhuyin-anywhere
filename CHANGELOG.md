@@ -2,7 +2,12 @@
 
 Newest first. Versions are the userscript's `@version`; each entry lists the commits that make it up.
 
-## Unreleased
+## 0.5.1
+
+### `<hash>` · 2026-10-17 · fix(popup): Keep hover card closed while drag-selecting text
+
+- Hover card no longer opens for words dragged over while selecting; an open card closes when a button is pressed.
+- Translation popup (auto or <kbd>Alt</kbd>+<kbd>T</kbd>) closes any open hover card first, so the card can't sit on top of it.
 
 ### `fcb0f08` · 2026-10-17 · docs(readme): Add README image generator and local install instructions
 
