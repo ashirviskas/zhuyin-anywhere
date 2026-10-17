@@ -41,6 +41,7 @@ When you turn it on, every Traditional Chinese character on the page gets its zh
 ### Point at a word to see what it means
 
 Hovering over a word opens a card with:
+- the word with its zhuyin in large print, and a speaker button that reads it aloud,
 - the English for the whole word,
 - what each character means on its own, with the one under your cursor highlighted.
 
@@ -50,7 +51,9 @@ In this example, "pearls + milk + tea" turns out to be bubble tea.
 
 ### Select text to translate it
 
-Highlight any text to get the English translation, plus pinyin (the Latin-letter spelling of the same sounds). Selections of up to 24 characters also get a word-by-word breakdown.
+Highlight any text to get the English translation, with a speaker button that reads the text aloud. Selections of up to 24 characters also get a word-by-word breakdown with each word's zhuyin. Pinyin (the Latin-letter spelling of the same sounds) can be switched on in the menu.
+
+While the translation is open, the word card appears beside it rather than on top of it.
 
 <p align="center"><img src="docs/img/select.png" alt="Selected sentence 我們先去銀行換錢 with a popup showing pinyin, the English translation and a word list" width="560"></p>
 
@@ -93,7 +96,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 |---|---|
 | <kbd>Alt</kbd>+<kbd>Z</kbd> | Show or hide zhuyin. On a page the script skipped, this turns it on. |
 | <kbd>Alt</kbd>+<kbd>T</kbd> | Translate the selection (when automatic translation is off) |
-| <kbd>Esc</kbd> | Close the translation box or word card |
+| <kbd>Esc</kbd> | Close the translation box or word card, and stop reading aloud |
 
 ### Menu (Violentmonkey icon → this script)
 
@@ -105,6 +108,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 | Buttons & popups | `compact` or full zhuyin everywhere |
 | Word gloss | `hover`, `alt` (only while holding <kbd>Alt</kbd>), or `off` |
 | Translator | `google` (Google's free web endpoint, no key) or `local` (yt-zhuyin's `asr_server.py`, opus-mt, offline) |
+| Pinyin in translation | Off: the word list shows zhuyin. On: a pinyin line under the selected text, and pinyin in the word list. |
 | Translate on select | On, or off so that only <kbd>Alt</kbd>+<kbd>T</kbd> translates |
 
 ## How it works
@@ -127,6 +131,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 - **Word list senses:** the selection word list shows each word's first CC-CEDICT sense, which isn't always the one the sentence uses. 搭 comes out as "to put up", not "to take (the MRT)". The hover card lists more senses.
 - **React/Vue sites:** replacing text nodes can crash some single-page apps on their next re-render. If a site breaks, set it to `off` from the menu.
 - **Google translation:** the `google` translator uses an unofficial endpoint and can occasionally be rate-limited. The popup then shows an error instead of the translation.
+- **Read aloud:** uses Google Translate's unofficial voice endpoint, with a Taiwan Mandarin speaker. When it can't be reached, the browser's own voice reads instead; on Linux that is often espeak-ng, which sounds robotic. The button's tooltip says when that happened and why. Google chooses the reading itself, so a single character can come out differently from the zhuyin on the page.
 - **Simplified Chinese:** pages in Simplified Chinese are skipped in `auto` mode, because the dictionary covers Traditional characters.
 
 ## Related
