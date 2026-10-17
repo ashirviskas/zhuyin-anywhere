@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         注音 anywhere (Traditional Mandarin → zhuyin + select-to-translate)
 // @namespace    local.zhuyin-anywhere
-// @version      0.5.0
+// @version      0.5.1
 // @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its CC-CEDICT gloss; select text to get an English translation. Speaker buttons read words and selections aloud in Taiwan Mandarin.
 // @match        *://*/*
 // @match        file:///*
@@ -791,6 +791,7 @@
     p.en.className = 'en'; p.en.textContent = '…';
     p.via.textContent = CFG.translator === 'local' ? 'local opus-mt' : 'Google';
     p.words.replaceChildren(); p.words.style.display = 'none';
+    hideGloss();   // a card opened before the popup wasn't placed clear of it (Alt+T while hovering)
     place(rect);
     fillWordList(text, id, rect);
     try {
@@ -904,6 +905,7 @@
     if (pop && e.composedPath().includes(pop.hostEl)) {   // moved onto the card: keep it, drop words crossed on the way
       clearTimeout(hideT); clearTimeout(showT); hoverWord = glossWord; return;
     }
+    if (e.buttons) { hoverWord = null; hideGloss(); return; }   // drag-selecting: no card over the selection
     const w = e.target.closest?.('zy-w') ?? null;
     if (w && w !== glossWord && onWayToCard(e.clientX, e.clientY)) { clearTimeout(hideT); return; }
     const cc = e.target.closest?.('zy-c') ?? null;
