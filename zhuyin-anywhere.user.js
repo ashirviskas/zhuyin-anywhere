@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         注音 anywhere (Traditional Mandarin → zhuyin + select-to-translate)
 // @namespace    local.zhuyin-anywhere
-// @version      0.5.1
+// @version      0.6.0
 // @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its CC-CEDICT gloss; select text to get an English translation. Speaker buttons read words and selections aloud in Taiwan Mandarin.
 // @match        *://*/*
 // @match        file:///*
@@ -43,12 +43,15 @@
  *     stored base64 in extension storage, read lazily via GM_getResourceURL and gunzipped with
  *     DecompressionStream. Not GM_setValue: Violentmonkey ships every stored value into every page on
  *     injection, so 10 MB there would cost every site load. Entries are sorted so the one matching the
- *     zhuyin on the page comes first (incl. CEDICT's "Taiwan pr. [...]" notes).
+ *     zhuyin on the page comes first (incl. CEDICT's "Taiwan pr. [...]" notes). A segmenter word that
+ *     CEDICT doesn't have (IME phrases like 最好的) is split into CEDICT words for the card and word list.
  *  6. Selection → English popup (shadow DOM, isolated from page CSS). Google gtx endpoint by default,
  *     or yt-zhuyin's local asr_server /translate (opus-mt) if you run it.
  *  7. Read aloud: speaker button on both popups. Google's zh-TW voice (Taiwan Mandarin) as MP3, played
  *     through Web Audio, which page CSP media-src can't block. Offline or refused → the browser's own
- *     voice (speechSynthesis).
+ *     voice (speechSynthesis). Every row of the selection word list has its own speaker.
+ *  8. Google translations and voice clips are cached in the page origin's IndexedDB (cacheMB per site, LRU).
+ *  9. Touch: a tap opens a word's card; a long-press selection translates once it settles.
  *
  * Hotkeys: Alt+Z show/hide zhuyin · Alt (held) + hover shows gloss in 'alt' mode · Alt+T translate selection (when autoTranslate is off) · Esc closes popup and stops reading aloud
  */
@@ -69,6 +72,8 @@
     pinyin: GM_getValue('pinyin', false),             // selection popup: pinyin line, and pinyin instead of zhuyin in the word list
     compactChrome: GM_getValue('compactChrome', true),// buttons + fixed/sticky boxes (popups, headers): zhuyin hidden, gloss on hover
     overflowGuard: true,                              // a box that starts overflowing after annotation goes compact
+    theme: GM_getValue('theme', 'auto'),              // popups: 'auto' (follows the system) | 'dark' | 'light'
+    cacheMB: GM_getValue('cacheMB', 100),             // Google translations + voice kept in IndexedDB, per site; 0 = off
     gloss: GM_getValue('gloss', 'hover'),             // 'hover' | 'alt' (hold Alt while hovering) | 'off' (plain title tooltip)
     glossDelay: 220,                                  // ms of hover before the card shows
     glossHideDelay: 400,                              // ms off the word and card before the card hides
@@ -228,7 +233,7 @@
       ['zy-run[data-c] zy-z', 'display:none'],
       ['zy-run[data-c] zy-w', 'margin-right:0'],
       ['html.zyh-hidden zy-w', 'margin-right:0'],
-      ['zy-w[data-on]', 'background:rgba(66,133,244,.16);border-radius:.2em;box-shadow:0 0 0 .1em rgba(66,133,244,.16)'],   // word of the open card
+      ['zy-c[data-on]', 'background:rgba(66,133,244,.16);box-shadow:0 .1em 0 rgba(66,133,244,.16),0 -.1em 0 rgba(66,133,244,.16)'],   // word of the open card; per character, as the card may show part of a zy-w
     ];
     const imp = (decls) => decls.split(';').map(d => d.trim()).filter(Boolean)
       .map(d => (d.startsWith('--') ? d : d + '!important')).join(';');
@@ -519,6 +524,44 @@
   }
   const shortDef = (e, py = true) => fmtDef(e.defs.find(d => !/^(surname|variant of|old variant of|used in|see |Taiwan pr)/i.test(d)) ?? e.defs[0] ?? '', py);
 
+  // ---------------------------------------------------------------- disk cache
+  // Google translations and voice clips, kept in IndexedDB so a reload doesn't ask Google again. IndexedDB
+  // belongs to the page's origin, so each site has its own cache of up to cacheMB. (GM_setValue is shared
+  // across sites, but Violentmonkey injects all of it into every page.) Least recently used goes first.
+  // 'v': key → value. 'm': key → { k, n: bytes, t: last use }, small, so it's cheap to sum and sweep.
+  let dbP = null, dbBytes = 0;
+  const idbReq = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  function cacheDb() {
+    return dbP ??= (async () => {
+      const open = indexedDB.open('zhuyin-anywhere', 1);
+      open.onupgradeneeded = () => { const db = open.result; db.createObjectStore('v'); db.createObjectStore('m', { keyPath: 'k' }).createIndex('t', 't'); };
+      const db = await idbReq(open);
+      dbBytes = (await idbReq(db.transaction('m').objectStore('m').getAll())).reduce((s, m) => s + m.n, 0);
+      return db;
+    })().catch((e) => { log('cache unavailable', e); return null; });   // sandboxed frames, some private modes
+  }
+  async function cacheGet(k) {
+    const db = CFG.cacheMB > 0 && await cacheDb(); if (!db) return undefined;
+    try {
+      const tx = db.transaction(['v', 'm'], 'readwrite'), m = tx.objectStore('m');
+      const [v, meta] = await Promise.all([idbReq(tx.objectStore('v').get(k)), idbReq(m.get(k))]);
+      if (v !== undefined && meta) m.put({ ...meta, t: Date.now() });
+      return v;
+    } catch (e) { log('cache read failed', e); return undefined; }
+  }
+  async function cachePut(k, v, n) {
+    const db = CFG.cacheMB > 0 && await cacheDb(); if (!db) return;
+    try {
+      const tx = db.transaction(['v', 'm'], 'readwrite'), vs = tx.objectStore('v'), m = tx.objectStore('m');
+      vs.put(v, k); m.put({ k, n, t: Date.now() }); dbBytes += n;
+      const cap = CFG.cacheMB * 2 ** 20;
+      if (dbBytes > cap) m.index('t').openCursor().onsuccess = (e) => {   // oldest first, down to 90%
+        const c = e.target.result; if (!c || dbBytes <= cap * 0.9) return;
+        dbBytes -= c.value.n; vs.delete(c.value.k); c.delete(); c.continue();
+      };
+    } catch (e) { log('cache write failed', e); }
+  }
+
   // ---------------------------------------------------------------- translation
   const tCache = new Map();
   function gmFetch(opts) {
@@ -535,11 +578,16 @@
         headers: { 'Content-Type': 'application/json' }, data: JSON.stringify({ lines: [text] }) }));
       out = r.lines?.[0] ?? '';
     } else {
-      const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=' + CFG.targetLang +
-        '&dt=t&q=' + encodeURIComponent(text);
-      const body = await gmFetch({ method: 'GET', url });
-      let j; try { j = JSON.parse(body); } catch { throw new Error('Google returned a non-JSON page (rate-limited / captcha?)'); }
-      out = (j[0] || []).map(seg => seg[0]).join('');
+      const k = 'tr|' + CFG.targetLang + '|' + text;
+      out = await cacheGet(k);
+      if (out === undefined) {
+        const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-TW&tl=' + CFG.targetLang +
+          '&dt=t&q=' + encodeURIComponent(text);
+        const body = await gmFetch({ method: 'GET', url });
+        let j; try { j = JSON.parse(body); } catch { throw new Error('Google returned a non-JSON page (rate-limited / captcha?)'); }
+        out = (j[0] || []).map(seg => seg[0]).join('');
+        cachePut(k, out, 2 * (k.length + out.length));
+      }
     }
     tCache.set(key, out);
     return out;
@@ -549,7 +597,7 @@
   // Google's zh-TW voice, decoded and played through Web Audio: an <audio> element would be subject to
   // the page's CSP media-src, Web Audio isn't. Offline or refused → the browser's own voice, which on
   // Linux is often espeak-ng: worse, but better than silence.
-  const ttsCache = new Map();   // chunk → Promise<AudioBuffer>
+  const ttsCache = new Map();   // chunk → Promise<AudioBuffer>; the MP3s also go to the disk cache
   let actx = null, playing = null;
   // Google takes at most 200 characters per request: split at punctuation, cut hard if a run is longer.
   function ttsChunks(text) {
@@ -565,8 +613,14 @@
   }
   function ttsBuffer(chunk) {
     if (!ttsCache.has(chunk)) {
-      const url = 'https://translate.google.com/translate_tts?ie=UTF-8&client=gtx&tl=zh-TW&q=' + encodeURIComponent(chunk);
-      const p = gmFetch({ method: 'GET', url, responseType: 'arraybuffer' }).then(b => actx.decodeAudioData(b));
+      const p = (async () => {
+        const k = 'tts|zh-TW|' + chunk, hit = await cacheGet(k);
+        const b = hit ?? await gmFetch({ method: 'GET', responseType: 'arraybuffer',
+          url: 'https://translate.google.com/translate_tts?ie=UTF-8&client=gtx&tl=zh-TW&q=' + encodeURIComponent(chunk) });
+        const buf = await actx.decodeAudioData(b.slice(0));   // decoding detaches its input
+        if (!hit) cachePut(k, b, b.byteLength + 2 * k.length);   // only audio that decoded: not a captcha page
+        return buf;
+      })();
       p.catch(() => ttsCache.delete(chunk));
       ttsCache.set(chunk, p);
     }
@@ -632,11 +686,18 @@
   }
 
   // Popup lives in a closed shadow root: page CSS can't touch it, and our CSS can't leak out.
+  // Dark by default; the light rules apply under the host's data-theme (auto: when the system is light).
+  const LIGHT = (host) => `.box{color:#1a1a1a;background:rgba(252,252,252,.97);border-color:rgba(0,0,0,.1)}
+    .src{color:#555}.hw .zy{color:#333}.py,.wl .p,.hw .pyl,.ent .epy{color:#1a5fb4}.ent .tag{color:#1a5fb4;background:rgba(26,95,180,.1)}
+    button{background:rgba(0,0,0,.06);color:#222}button:hover{background:rgba(0,0,0,.12)}
+    .say.on{color:#1a5fb4;background:rgba(26,95,180,.12)}`
+    .replace(/([^{}]+)\{/g, (_, sel) => sel.split(',').map(x => host + ' ' + x.trim()).join(',') + '{');
   let pop = null;
   function popup() {
     if (pop) return pop;
     const hostEl = document.createElement('div'); hostEl.id = 'zyh-host';
     hostEl.style.cssText = 'all:initial;position:fixed;z-index:2147483647;top:0;left:0;width:0;height:0';
+    hostEl.dataset.theme = CFG.theme;
     const sh = hostEl.attachShadow({ mode: 'closed' });
     sh.innerHTML = `<style>
       .box{position:fixed;max-width:min(460px,calc(100vw - 24px));padding:10px 12px;border-radius:10px;display:none;
@@ -657,7 +718,8 @@
       button{all:unset;cursor:pointer;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.08);color:#ddd;font-size:12px}
       button:hover{background:rgba(255,255,255,.16)}
       .words{margin-top:8px;padding-top:6px;border-top:1px solid rgba(127,127,127,.25);font-size:13px;max-height:40vh;overflow:auto}
-      .wl{display:grid;grid-template-columns:auto auto 1fr;gap:1px 8px;align-items:baseline}
+      .wl{display:grid;grid-template-columns:auto auto auto 1fr;gap:1px 8px;align-items:baseline}
+      .wl .say{align-self:center;padding:1px 4px}
       .wl .h{font-family:"Noto Sans TC","PingFang TC",sans-serif;font-size:15px}
       .wl .p{color:#8ab4f8;font-size:12px;white-space:nowrap;font-family:"Noto Sans TC","PingFang TC",sans-serif}
       .wl .d{color:inherit;opacity:.85;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -678,10 +740,8 @@
       .part.on{background:rgba(138,180,248,.16);opacity:1}
       .note{font-size:13px;opacity:.6;margin-top:4px}
       .foot{font-size:10px;opacity:.4;margin-top:6px;text-align:right}
-      @media (prefers-color-scheme: light){.box{color:#1a1a1a;background:rgba(252,252,252,.97);border-color:rgba(0,0,0,.1)}
-        .src{color:#555}.hw .zy{color:#333}.py,.wl .p,.hw .pyl,.ent .epy{color:#1a5fb4}.ent .tag{color:#1a5fb4;background:rgba(26,95,180,.1)}
-        button{background:rgba(0,0,0,.06);color:#222}button:hover{background:rgba(0,0,0,.12)}
-        .say.on{color:#1a5fb4;background:rgba(26,95,180,.12)}}
+      @media (prefers-color-scheme: light){${LIGHT(':host([data-theme=auto])')}}
+      ${LIGHT(':host([data-theme=light])')}
     </style>
     <div class="box tr"><div class="src"></div><div class="py"></div><div class="en"></div><div class="words"></div>
       <div class="bar"><span class="via"></span><button class="say" title="Read aloud"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button><button class="cp">copy</button><button class="x">✕</button></div></div>
@@ -696,7 +756,25 @@
     pop.gl.addEventListener('mousedown', (e) => e.stopPropagation());
     return pop;
   }
-  function hidePopup() { if (pop) { pop.box.style.display = 'none'; if (playing?.btn === pop.say) stopSpeaking(); } }
+  function hidePopup() { if (pop) { pop.box.style.display = 'none'; if (playing && pop.box.contains(playing.btn)) stopSpeaking(); } }
+  const sayBtn = (text) => { const b = pop.say.cloneNode(true); b.className = 'say'; b.title = 'Read aloud'; b.onclick = () => speak(text, b); return b; };
+
+  // The segmenter's words come from an IME dictionary, which also lists phrases for typing (我在, 最好的).
+  // Where CC-CEDICT has no such word, the card and the word list split it into the fewest CC-CEDICT
+  // words, single characters always allowed. Returns [start, end) pairs; the page's zhuyin is kept.
+  function ceSplit(chars) {
+    const n = chars.length;
+    if (n < 2 || CEDICT.has(chars.join(''))) return [[0, n]];
+    const best = [0], back = [];
+    for (let j = 1; j <= n; j++) {
+      best[j] = Infinity;
+      for (let i = Math.max(0, j - 8); i < j; i++)   // ascending i: the longest piece wins a tie
+        if (best[i] + 1 < best[j] && (j - i === 1 || CEDICT.has(chars.slice(i, j).join('')))) { best[j] = best[i] + 1; back[j] = i; }
+    }
+    const out = [];
+    for (let j = n; j > 0; j = back[j]) out.unshift([back[j], j]);
+    return out;
+  }
 
   // Below the anchor, else above it. The hover card also keeps off an open translation popup: below or
   // above the word if that's clear of it, else beside, below or above the popup; overlapping only if the
@@ -761,13 +839,13 @@
     try { await loadCedict(); } catch { return; }
     if (id !== reqId) return;
     const D = loadDict(), seen = new Set(), grid = document.createElement('div'); grid.className = 'wl';
-    for (const run of text.match(HAN_RUN)) for (const w of segment([...run], D)) {
-      const word = w.chars.join('');
+    for (const run of text.match(HAN_RUN)) for (const w of segment([...run], D)) for (const [a, b] of ceSplit(w.chars)) {
+      const word = w.chars.slice(a, b).join('');
       if (seen.has(word)) continue; seen.add(word);
-      const zys = w.zy[0] === null ? null : w.zy;
-      let e = lookup(word, zys)[0], def = e ? shortDef(e) : '';
-      if (!e && w.chars.length > 1) def = w.chars.map((ch, i) => { const x = lookup(ch, zys ? [zys[i]] : null)[0]; return x ? shortDef(x).split(';')[0] : '?'; }).join(' + ');
+      const zys = w.zy[0] === null ? null : w.zy.slice(a, b);
+      const e = lookup(word, zys)[0], def = e ? shortDef(e) : '';
       const cell = (cls, t) => { const d = document.createElement('span'); d.className = cls; d.textContent = t; grid.appendChild(d); };
+      grid.appendChild(sayBtn(word));
       cell('h', word);
       cell('p', !CFG.pinyin ? (zys ? zys.map(normZhuyin).join(' ') : '')
         : zys ? zys.map(zhuyinToPinyin).join('') : (e ? numToMarked(e.num).replace(/ /g, '') : ''));
@@ -810,7 +888,9 @@
   let hoverWord = null, glossWord = null, glossChar = null, showT = 0, hideT = 0;
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
-  function hideGloss() { clearTimeout(showT); if (pop) pop.gl.style.display = 'none'; glossWord?.removeAttribute('data-on'); glossWord = null; }
+  let onCells = [];
+  const tint = (cells) => { onCells.forEach(c => c.removeAttribute('data-on')); (onCells = cells).forEach(c => c.setAttribute('data-on', '')); };
+  function hideGloss() { clearTimeout(showT); if (pop) pop.gl.style.display = 'none'; tint([]); glossWord = null; }
   // Slipping a little off the word or card isn't leaving: while the pointer stays close, check again.
   let mx = 0, my = 0;
   document.addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; }, { capture: true, passive: true });
@@ -835,35 +915,37 @@
   // character means on its own. No pinyin — the zhuyin is already on the page.
   async function showGloss(w, cc = null) {
     const p = popup();
-    if (glossWord !== w) glossWord?.removeAttribute('data-on');
-    w.setAttribute('data-on', '');
     glossWord = w; glossChar = cc;
-    const cells = [...w.querySelectorAll('zy-c')];
-    const chars = cells.map(c => c.firstChild?.nodeValue ?? '');
-    const word = chars.join('');
-    const zys = (w.dataset.zy || '').split(' ').filter(Boolean);
+    let cells = [...w.querySelectorAll('zy-c')];
+    let chars = cells.map(c => c.firstChild?.nodeValue ?? '');
+    let zys = (w.dataset.zy || '').split(' ').filter(Boolean);
     const known = zys.length === chars.length && !zys.includes('?');
-    const hi = cc ? cells.indexOf(cc) : -1;
-    const rect = w.getBoundingClientRect();
+    let hi = cc ? cells.indexOf(cc) : -1;
+    if (!CEDICT) {
+      tint(cells);
+      p.gl.replaceChildren(el('div', 'note', 'loading CC-CEDICT…'));
+      place(w.getBoundingClientRect(), p.gl);
+      try { await loadCedict(); } catch (e) {
+        if (glossWord === w) { p.gl.lastChild.textContent = 'CC-CEDICT unavailable: ' + e.message; place(w.getBoundingClientRect(), p.gl); }
+        return;
+      }
+      if (glossWord !== w) return;
+      hi = glossChar ? cells.indexOf(glossChar) : -1;   // the pointer may have moved on within the word
+    }
+    // Not one CC-CEDICT word: the card is for the piece under the pointer (the first one with Alt).
+    const [a, b] = ceSplit(chars).find(([, b]) => hi < b);
+    cells = cells.slice(a, b); chars = chars.slice(a, b); if (known) zys = zys.slice(a, b); if (hi >= 0) hi -= a;
+    const word = chars.join('');
+    tint(cells);
+    const rs = cells.map(c => c.getBoundingClientRect());
+    const rect = { left: Math.min(...rs.map(r => r.left)), top: Math.min(...rs.map(r => r.top)), bottom: Math.max(...rs.map(r => r.bottom)) };
     // Speaker first: the card opens under the word's left edge, so it's the shortest way from the word.
-    const say = p.say.cloneNode(true); say.className = 'say'; say.title = 'Read aloud';
-    say.onclick = () => speak(word, say);
-    const hw = el('div', 'hw'); hw.append(say, el('span', 'han', word));
+    const hw = el('div', 'hw'); hw.append(sayBtn(word), el('span', 'han', word));
     // Larger than on the page, where it's half the text size and hard to read; also the only place it
     // shows for compact (UI) text or when hidden with Alt+Z.
     if (known)
       hw.append(el('span', 'zy', zys.map(normZhuyin).join(' ')));
     p.gl.replaceChildren(hw);
-    if (!CEDICT) {
-      p.gl.append(el('div', 'note', 'loading CC-CEDICT…'));
-      place(rect, p.gl);
-      try { await loadCedict(); } catch (e) {
-        if (glossWord === w) { p.gl.lastChild.textContent = 'CC-CEDICT unavailable: ' + e.message; place(rect, p.gl); }
-        return;
-      }
-      if (glossWord !== w) return;
-      p.gl.lastChild.remove();
-    }
     const senses = (list) => {
       // Prefer the entries whose reading matches the page; fall back to everything if none do.
       const match = list.filter(e => e.score >= 3);
@@ -878,7 +960,7 @@
       if (defs.length > CFG.glossMaxDefs) list.append(el('span', null, `+${defs.length - CFG.glossMaxDefs}`));
       box.append(list); p.gl.append(box);
     }
-    if (!ents.length) p.gl.append(el('div', 'note', 'not in CC-CEDICT as one word'));
+    if (!ents.length) p.gl.append(el('div', 'note', 'not in CC-CEDICT'));
     // Per-character meanings for compounds; the character under the cursor is highlighted.
     // When CEDICT reads the word with a neutral tone the IME dictionary doesn't have (長得 zhang3 de5 vs
     // ㄓㄤˇ ㄉㄜˊ), the character is looked up with CEDICT's syllable, so 得 is the particle, not "obtain".
@@ -895,13 +977,32 @@
       });
       p.gl.append(parts);
     }
-    if (w.dataset.alts) p.gl.append(el('div', 'note', 'other readings: ' + w.dataset.alts.split(' ').map(normZhuyin).join(' / ')));
+    if (w.dataset.alts && chars.length === 1) p.gl.append(el('div', 'note', 'other readings: ' + w.dataset.alts.split(' ').map(normZhuyin).join(' / ')));
     p.gl.append(el('div', 'foot', 'CC-CEDICT · MDBG'));
     place(rect, p.gl);
   }
 
+  // Touch (Firefox for Android): no hover, so a tap on a word opens its card, and a selection made by
+  // long-press translates once the handles stop moving. Taps also fire emulated mouse events; those are
+  // ignored, the pointer type of the last pointer event tells them apart.
+  let pointer = 'mouse', selTimer = 0;
+  const notePointer = (e) => { pointer = e.pointerType; };
+  document.addEventListener('pointerdown', notePointer, { capture: true, passive: true });
+  document.addEventListener('pointermove', notePointer, { capture: true, passive: true });
+  document.addEventListener('click', (e) => {
+    if (pointer !== 'touch' || CFG.gloss === 'off' || (pop && e.composedPath().includes(pop.hostEl))) return;
+    const w = e.target.closest?.('zy-w');
+    if (!w || e.target.closest('a,button,label,summary') || !getSelection().isCollapsed) return;   // links still work
+    hoverWord = w; clearTimeout(hideT);
+    showGloss(w, e.target.closest('zy-c'));
+  }, true);
+  document.addEventListener('selectionchange', () => {
+    if (pointer !== 'touch' || !CFG.autoTranslate || siteMode() === 'off') return;
+    clearTimeout(selTimer); selTimer = setTimeout(() => translateSelection(false), 600);
+  });
+
   document.addEventListener('mouseover', (e) => {
-    if (CFG.gloss === 'off') return;
+    if (CFG.gloss === 'off' || pointer === 'touch') return;
     if (pop && e.composedPath().includes(pop.hostEl)) {   // moved onto the card: keep it, drop words crossed on the way
       clearTimeout(hideT); clearTimeout(showT); hoverWord = glossWord; return;
     }
@@ -922,9 +1023,8 @@
   }, true);
   addEventListener('scroll', hideGloss, { capture: true, passive: true });
 
-  let selTimer = 0;
   document.addEventListener('mouseup', (e) => {
-    if (pop && e.composedPath().includes(pop.hostEl)) return;
+    if (pointer === 'touch' || (pop && e.composedPath().includes(pop.hostEl))) return;
     if (!CFG.autoTranslate || siteMode() === 'off') return;
     clearTimeout(selTimer); selTimer = setTimeout(() => translateSelection(false), 180);
   }, true);
@@ -977,6 +1077,15 @@
     }));
     menuIds.push(GM_registerMenuCommand(`Translate on select: ${CFG.autoTranslate ? 'on → off (Alt+T)' : 'off → on'}`, () => {
       CFG.autoTranslate = !CFG.autoTranslate; GM_setValue('autoTranslate', CFG.autoTranslate); buildMenu();
+    }));
+    const tNext = { auto: 'dark', dark: 'light', light: 'auto' }[CFG.theme];
+    menuIds.push(GM_registerMenuCommand(`Popup theme: ${CFG.theme} → ${tNext}`, () => {
+      CFG.theme = tNext; GM_setValue('theme', tNext); if (pop) pop.hostEl.dataset.theme = tNext; buildMenu();
+    }));
+    menuIds.push(GM_registerMenuCommand(`Cache: ${CFG.cacheMB ? CFG.cacheMB + ' MB per site' : 'off'} (change…)`, () => {
+      const v = prompt('Cache for Google translations and voice, in MB per site (0 = off):', CFG.cacheMB);
+      if (v === null || !(+v >= 0)) return;
+      CFG.cacheMB = +v; GM_setValue('cacheMB', CFG.cacheMB); buildMenu();
     }));
   }
 

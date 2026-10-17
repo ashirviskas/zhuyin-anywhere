@@ -58,8 +58,8 @@ async function injectUserscript(page, store = {}) {
 }
 
 // ------------------------------------------------------------------ stage 1: demo-site screenshots
-async function demoPage(browser, { script = true, store = {}, modal = false, h = 330 } = {}) {
-  const p = await browser.newPage({ viewport: { width: 640, height: h }, deviceScaleFactor: SCALE });
+async function demoPage(browser, { script = true, store = {}, modal = false, h = 330, colorScheme = 'light' } = {}) {
+  const p = await browser.newPage({ viewport: { width: 640, height: h }, deviceScaleFactor: SCALE, colorScheme });
   p.on('pageerror', (e) => console.log('pageerror', e.message));
   await p.goto(fileUrl('site.html'));
   await p.evaluate(() => document.fonts.ready);
@@ -81,23 +81,26 @@ async function shootDemo(browser) {
   p = await demoPage(browser, { script: false }); await p.screenshot({ path: out('before.png') }); await p.close();
   p = await demoPage(browser); await p.screenshot({ path: out('after.png') }); await p.close();
 
-  // hover card: point at 珠 in 珍珠奶茶 (tall viewport so the card opens below the word)
-  p = await demoPage(browser, { h: 600 });
-  const c = await charCenter(p, '珍珠奶茶', 1);
-  await p.mouse.move(5, 5); await p.mouse.move(c.x, c.y); await p.waitForTimeout(1600);
-  await p.screenshot({ path: out('hover.png') }); await p.close();
+  // hover card and selection popup, with the system (site.html and the popups' 'auto' theme) light, then dark
+  for (const [sfx, colorScheme] of [['', 'light'], ['-dark', 'dark']]) {
+    // hover card: point at 珠 in 珍珠奶茶 (tall viewport so the card opens below the word)
+    p = await demoPage(browser, { h: 600, colorScheme });
+    const c = await charCenter(p, '珍珠奶茶', 1);
+    await p.mouse.move(5, 5); await p.mouse.move(c.x, c.y); await p.waitForTimeout(1600);
+    await p.screenshot({ path: out(`hover${sfx}.png`) }); await p.close();
 
-  // selection → translation popup with word list
-  p = await demoPage(browser, { h: 520 });
-  await p.evaluate(() => {
-    const ws = [...document.querySelectorAll('#p1 zy-w')];
-    const a = ws.find((w) => w.textContent.startsWith('我')), z = ws.find((w) => w.textContent.startsWith('換'));
-    const r = document.createRange(); r.setStartBefore(a); r.setEndAfter(z);
-    getSelection().removeAllRanges(); getSelection().addRange(r);
-  });
-  await p.mouse.move(300, 150); await p.mouse.up(); await p.waitForTimeout(1600);
-  await p.mouse.move(630, 510);   // park the mouse off the text
-  await p.screenshot({ path: out('select.png') }); await p.close();
+    // selection → translation popup with word list
+    p = await demoPage(browser, { h: 520, colorScheme });
+    await p.evaluate(() => {
+      const ws = [...document.querySelectorAll('#p1 zy-w')];
+      const a = ws.find((w) => w.textContent.startsWith('我')), z = ws.find((w) => w.textContent.startsWith('換'));
+      const r = document.createRange(); r.setStartBefore(a); r.setEndAfter(z);
+      getSelection().removeAllRanges(); getSelection().addRange(r);
+    });
+    await p.mouse.move(300, 150); await p.mouse.up(); await p.waitForTimeout(1600);
+    await p.mouse.move(630, 510);   // park the mouse off the text
+    await p.screenshot({ path: out(`select${sfx}.png`) }); await p.close();
+  }
 
   // newsletter pop-up: full zhuyin vs compact mode
   p = await demoPage(browser, { modal: true, store: { compactChrome: false } }); await p.screenshot({ path: out('modal-full.png') }); await p.close();
@@ -176,8 +179,9 @@ const README_IMAGES = {
   'before-after': () => document.querySelectorAll('section')[1].querySelector('.pair'),
   'hover':        () => document.querySelectorAll('section')[2].querySelectorAll('.feature')[0].querySelector('.frame'),
   'select':       () => document.querySelectorAll('section')[2].querySelectorAll('.feature')[1].querySelector('.frame'),
+  'dark':         () => document.getElementById('dark'),
   'context':      () => document.querySelector('.context'),
-  'compact':      () => document.querySelectorAll('section')[4].querySelector('.pair'),
+  'compact':      () => document.querySelectorAll('section')[5].querySelector('.pair'),
 };
 
 async function readmeImages(p) {
@@ -186,8 +190,10 @@ async function readmeImages(p) {
     .forEach((x) => { x.style.visibility = 'hidden'; }));
   for (const [name, pick] of Object.entries(README_IMAGES)) {
     const clip = await p.evaluate(([src, name]) => {
-      const el = (0, eval)(`(${src})`)(), r = el.getBoundingClientRect(), pad = 36;
+      const el = (0, eval)(`(${src})`)(), r = el.getBoundingClientRect();
+      let pad = 36;
       const extra = name === 'hero' ? 10 : 0;   // the hero box has an 8px offset shadow
+      if (name === 'dark') pad = 0;   // #dark draws its own dark margin
       return { x: Math.max(0, r.left - pad), y: r.top + scrollY - pad, width: Math.min(1500, r.width + 2 * pad + extra), height: r.height + 2 * pad + extra };
     }, [pick.toString(), name]);
     await p.screenshot({ path: path.join(IMG_OUT, name + '.png'), clip, fullPage: true });

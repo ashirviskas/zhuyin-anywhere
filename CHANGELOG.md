@@ -2,6 +2,17 @@
 
 Newest first. Versions are the userscript's `@version`; each entry lists the commits that make it up.
 
+## 0.6.0
+
+### `<hash>` · 2026-10-17 · feat(popup): Add word-list speakers, CC-CEDICT word split, cache, dark theme and touch
+
+- Every row of the selection word list has its own speaker button.
+- Segmenter words that CC-CEDICT doesn't list (IME phrases like 我在, 最好的) are split into CC-CEDICT words in the word list and the hover card. The card shows the piece under the pointer, and only that piece is tinted on the page.
+- Google translations and voice clips are cached in IndexedDB, per site, 100 MB by default (menu "Cache"; 0 = off), least recently used first out.
+- Menu "Popup theme": `auto` (follows the system), `dark` or `light`. New README image `dark.png`.
+- Touch: tapping a word opens its card; a long-press selection is translated once it stops changing. Emulated mouse events from taps are ignored.
+- `tools/assets/fetch-deps.sh`: progress bar, retries, and skips files it already has.
+
 ## 0.5.1
 
 ### `<hash>` · 2026-10-17 · fix(popup): Keep hover card closed while drag-selecting text

@@ -17,8 +17,8 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0}
-  body{
-    width:1500px;color:var(--ink);font:400 21px/1.55 var(--serif);
+  body{width:1500px;color:var(--ink);font:400 21px/1.55 var(--serif)}
+  body,#dark{
     background-color:var(--paper);
     /* 田字格: solid squares, dashed centre cross */
     background-image:
@@ -30,6 +30,8 @@
     background-position:-1px -1px,-1px -1px,0 0,0 0;
   }
   .wrap{padding:96px 90px 80px}
+  /* the dark-popup example sits on a night version of the sheet; its padding is the README crop's margin */
+  #dark{--paper:#1a221e;--grid:#3a5145;--ink:#a9bcb1;padding:36px;margin:-36px -36px 68px}
 
   /* ---------- masthead ---------- */
   .mast{display:grid;grid-template-columns:auto 1fr;gap:56px;align-items:center;margin-bottom:96px}
@@ -161,7 +163,21 @@
       <h3>Select a sentence to translate it</h3>
       <p class="lede">Highlight any text and a box shows the English translation, plus a word-by-word breakdown for short phrases.</p>
       <div class="frame"><div class="crop" data-src="shots/select.png" data-x="20" data-y="152" data-w="620" data-h="320"></div></div>
-      <p class="cap" translate="no">Each word in the list has its zhuyin in blue. The speaker button reads the selection aloud. Pinyin can be switched on in the menu.</p>
+      <p class="cap" translate="no">Each word in the list has its zhuyin in blue and its own speaker button; the one at the bottom reads the whole selection. Pinyin can be switched on in the menu.</p>
+    </div>
+  </section>
+
+  <!-- dark popups -->
+  <section class="pair" id="dark" style="align-items:end">
+    <div class="feature">
+      <h3>Dark popups</h3>
+      <p class="lede">The card and the translation box follow the system's light or dark setting, or can be set to either in the menu.</p>
+      <div class="frame"><div class="crop" data-src="shots/hover-dark.png" data-x="20" data-y="236" data-w="620" data-h="320"></div></div>
+    </div>
+    <div class="feature">
+      <h3>&nbsp;</h3>
+      <p class="lede">&nbsp;</p>
+      <div class="frame"><div class="crop" data-src="shots/select-dark.png" data-x="20" data-y="152" data-w="620" data-h="320"></div></div>
     </div>
   </section>
 
