@@ -11,6 +11,7 @@ Status: **<Not started | Planning, nothing implemented | Subtask N.M in progress
 - Project rules: never `git stash`, never run `git commit` (print a Suggested commit block instead), temporary files only in `./tmp/`, KISS, one file (`zhuyin-anywhere.user.js`) and no build step, reuse the popup's existing CSS classes and light/dark colours, no backwards compatibility.
 - `README.md`: what the user sees; update it when keys, menu entries or features change.
 - The pipeline comment at the top of `zhuyin-anywhere.user.js`: how the script is put together.
+- `tools/assets/README.md`: how the README images in `docs/img/` are rendered; rerun `node build.js` there when the UI changes.
 - <Other task docs or READMEs this task builds on, with one line on why.>
 
 ## Overview
@@ -138,6 +139,7 @@ graph TD
 - Bump `@version` in the metadata block when behaviour changes, so Violentmonkey picks up the update.
 - Test in Violentmonkey on Firefox and, when the change touches browser APIs, on Chrome too. A local test page in `./tmp/` opened as `file:///` works: the script matches local files.
 - if UI/UX changed, make sure to show specific changes and give paths to screenshots. Keep them in `./tmp/`.
+- if UI/UX changed, regenerate the README images: `cd tools/assets && node build.js` (setup in `tools/assets/README.md`), and check that popups still fit their crops.
 
 ### Gotchas (learned the hard way)
 
@@ -165,7 +167,9 @@ graph TD
 
 At the end of every task or subtask, emit a **Suggested commit** block with a ready-to-paste `git commit`. Never run it.
 
-**Shape:** `TASK-<id> <type>(<scope>): <specific subject>` — imperative, names the surface, no period.
+**Shape:** `TASK-<id> <type>(<scope>): <specific subject>` — imperative, names the surface, no period. Work outside a task: drop the `TASK-<id> ` prefix.
+
+**Never add a `Co-Authored-By:` trailer** (or any other attribution line).
 
 **Grow the body only when the subject leaves something out.** Let these three examples be the spec.
 

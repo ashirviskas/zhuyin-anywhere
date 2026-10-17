@@ -78,9 +78,28 @@ Boxes that already cut their text off on purpose, such as "Read more" previews a
 
 ## Install
 
-1. Install [Violentmonkey](https://violentmonkey.github.io/) for Firefox or Chrome.
-2. Click **[install zhuyin-anywhere.user.js](https://raw.githubusercontent.com/ashirviskas/zhuyin-anywhere/main/zhuyin-anywhere.user.js)**. Violentmonkey opens its install page. Updates are picked up automatically after that.
+1. Install [Violentmonkey](https://violentmonkey.github.io/) for your browser: [Firefox](https://addons.mozilla.org/firefox/addon/violentmonkey/), [Chrome](https://chrome.google.com/webstore/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag) or [Edge](https://microsoftedge.microsoft.com/addons/detail/eeagobfjdenkkddmbclomhiblgggliao).
+2. Click **[install zhuyin-anywhere.user.js](https://raw.githubusercontent.com/ashirviskas/zhuyin-anywhere/main/zhuyin-anywhere.user.js)**. Violentmonkey opens its install page; click **Install**. Updates are picked up automatically after that.
 3. Open any Traditional Chinese page.
+
+### Other ways to install
+
+- **From a link, by hand:** Violentmonkey icon → ⚙ (dashboard) → **+** → **Install from URL**, and paste the raw link above.
+- **A branch other than `main`:** use its raw link, `https://raw.githubusercontent.com/ashirviskas/zhuyin-anywhere/<branch>/zhuyin-anywhere.user.js`. Note that the script's `@updateURL` points at `main`, so auto-update brings you back to `main`.
+- **From a local clone:** open `zhuyin-anywhere.user.js` in the browser (drag it into a tab, or open `file:///path/to/zhuyin-anywhere/zhuyin-anywhere.user.js`). Violentmonkey opens its install page. Tick **Track local file before this window is closed** to reinstall on every save while you edit the script. In Chrome this needs file access, see below.
+
+### Local files (`file://` pages)
+
+The script also runs on HTML files opened from disk, but the browser has to let Violentmonkey in first:
+
+- **Chrome / Edge / Brave:** open `chrome://extensions` (`edge://extensions` in Edge) → Violentmonkey → **Details** → turn on **Allow access to file URLs**. Then reload the page.
+- **Firefox:** nothing to do; extensions can run on `file://` pages already.
+
+Then in the script itself:
+
+- Local files are treated as one site called *local files*, `auto` by default: zhuyin is added only when the page looks like Traditional Chinese.
+- To force it, open the Violentmonkey icon on a local page → this script → **Local files: auto → on**. Or press <kbd>Alt</kbd>+<kbd>Z</kbd> on a page the script skipped.
+- The dictionaries come from Violentmonkey's storage, so no network is needed on local pages, except for Google translation and read-aloud.
 
 On install, Violentmonkey downloads two dictionaries once and keeps them in its storage:
 - the zhuyin dictionary from [yt-zhuyin](https://github.com/ashirviskas/yt-zhuyin), about 6.5 MB,
@@ -145,3 +164,7 @@ MIT, see [`LICENSE`](LICENSE).
 - **Zhuyin readings:** [McBopomofo](https://github.com/openvanilla/McBopomofo) dictionary data (MIT), via yt-zhuyin. The script downloads it at install; this repo doesn't include it.
 - **Word meanings:** [CC-CEDICT](https://cc-cedict.org/) by MDBG ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)). Also downloaded at install, not included here.
 - **Fonts in the README images:** LXGW WenKai TC and Literata, both under the SIL Open Font License.
+
+## Images in this README
+
+The images are rendered from [`tools/assets/`](tools/assets/), which runs the real userscript in headless Chromium. Run `node build.js` there to regenerate them after changing the script.

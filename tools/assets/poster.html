@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Zhuyin Anywhere</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+  :root{
+    --paper:#E4EEE5;      /* celadon practice-sheet */
+    --grid:#A3C7B1;       /* 田字格 rule */
+    --ink:#1F2D3A;        /* blue-black ink */
+    --muted:#4E615C;
+    --red:#C2362B;        /* teacher's red pen */
+    --sheet:#FBFDFB;
+    --kai:"LXGW WenKai TC","Noto Serif CJK TC",serif;
+    --serif:"Literata",Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    width:1500px;color:var(--ink);font:400 21px/1.55 var(--serif);
+    background-color:var(--paper);
+    /* 田字格: solid squares, dashed centre cross */
+    background-image:
+      linear-gradient(var(--grid) 1.5px, transparent 1.5px),
+      linear-gradient(90deg, var(--grid) 1.5px, transparent 1.5px),
+      repeating-linear-gradient(90deg, transparent 0 59px, color-mix(in srgb,var(--grid) 55%,transparent) 59px 60px, transparent 60px 120px),
+      repeating-linear-gradient(0deg, transparent 0 59px, color-mix(in srgb,var(--grid) 55%,transparent) 59px 60px, transparent 60px 120px);
+    background-size:120px 120px,120px 120px,120px 8px,8px 120px;
+    background-position:-1px -1px,-1px -1px,0 0,0 0;
+  }
+  .wrap{padding:96px 90px 80px}
+
+  /* ---------- masthead ---------- */
+  .mast{display:grid;grid-template-columns:auto 1fr;gap:56px;align-items:center;margin-bottom:96px}
+  .title-zh{font:400 168px/1 var(--kai);color:var(--ink);background:var(--sheet);padding:22px 30px 26px;border:2px solid var(--ink);
+    box-shadow:8px 8px 0 var(--ink)}
+  .mast h1{font:700 76px/1.02 var(--serif);letter-spacing:-.015em;margin:0 0 22px}
+  .mast p{font-size:25px;line-height:1.5;margin:0;max-width:30em;color:var(--ink)}
+  .mast .note{margin-top:18px;font-style:italic;color:var(--red);font-size:22px}
+
+  h2{font:600 44px/1.15 var(--serif);margin:0 0 10px;letter-spacing:-.01em}
+  .lede{max-width:44em;margin:0 0 34px;color:var(--muted);font-size:21px}
+  section{margin-bottom:104px}
+
+  /* ---------- primer ---------- */
+  .primer{display:grid;grid-template-columns:1fr;gap:40px}
+  .sheet{background:var(--sheet);border:2px solid var(--ink);position:relative}
+  .anatomy{height:500px;padding:0}
+  .anatomy .big{position:absolute;left:110px;top:110px;font:400 260px/1 var(--kai)}
+  .anatomy .means{position:absolute;left:96px;bottom:40px;font-size:24px}
+  .anatomy .means b{font-weight:600}
+  .tones{padding:34px 36px 30px}
+  .tones h3{font:600 26px/1.3 var(--serif);margin:0 0 6px}
+  .tones .sub{margin:0 0 22px;color:var(--muted);font-size:19px}
+  .trow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center;max-width:1100px}
+  .tch{font:400 96px/1.05 var(--kai);height:130px;display:flex;align-items:center;justify-content:center}
+  .py{font:italic 400 26px/1.2 var(--serif);color:var(--red);margin-top:4px}
+  .curve{display:block;margin:8px auto 4px;width:70px;height:44px}
+  .en{font-size:18px;line-height:1.3;color:var(--ink)}
+  .legend{margin:22px 0 0;font-size:18px;color:var(--muted);line-height:1.5}
+  .legend b{color:var(--ink);font-weight:600}
+
+  /* ---------- features ---------- */
+  .frame{background:var(--sheet);border:2px solid var(--ink);overflow:hidden}
+  .bar{display:flex;align-items:center;gap:10px;height:38px;padding:0 14px;border-bottom:2px solid var(--ink);background:#EDF3EE;
+    font:14px/1 "Inter",sans-serif;color:var(--muted)}
+  .bar .url{flex:1;background:var(--sheet);border:1.5px solid #C5D6CB;border-radius:5px;padding:5px 10px}
+  .bar .tag{font:italic 600 15px var(--serif);color:var(--ink)}
+  .crop{position:relative;overflow:hidden}
+  .crop img{position:absolute;display:block}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+  .cap{margin:16px 0 0;font-size:20px;line-height:1.5;max-width:34em}
+  .cap b{font-weight:600}
+  .feature h3{font:600 30px/1.2 var(--serif);margin:0 0 8px}
+  .feature .lede{margin-bottom:22px}
+  .with-arrow{position:relative}
+  .pen{position:absolute;font:italic 500 22px/1.25 var(--serif);color:var(--red);pointer-events:none}
+  svg.ink{position:absolute;inset:0;overflow:visible;pointer-events:none}
+  svg.ink path,svg.ink ellipse{fill:none;stroke:var(--red);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+
+  .context{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+  .ctx{padding:30px 34px 28px;position:relative}
+  .ctx .w{font:400 120px/1.1 var(--kai);height:190px;display:flex;align-items:center;padding-left:24px}
+  .ctx .gl{font-size:22px;margin:22px 0 0}
+  .ctx .gl i{color:var(--red)}
+
+  .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:2px solid var(--ink);background:var(--sheet)}
+  .key{padding:24px 26px;border-right:2px solid var(--ink)}
+  .key:last-child{border-right:0}
+  kbd{display:inline-block;font:600 18px/1 "Inter",sans-serif;padding:7px 10px 6px;border:2px solid var(--ink);border-bottom-width:4px;border-radius:6px;background:#fff;margin-bottom:12px}
+  .key p{margin:0;font-size:19px;line-height:1.45}
+  .foot{margin-top:40px;display:flex;justify-content:space-between;gap:40px;font-size:16px;color:var(--muted);line-height:1.5}
+  .foot p{margin:0;max-width:52em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- masthead -->
+  <header class="mast">
+    <div class="title-zh live" id="t-title">注音</div>
+    <div translate="no">
+      <h1>Zhuyin Anywhere</h1>
+      <p>A browser add-on for reading Taiwanese websites while learning Mandarin. It writes the pronunciation beside every Chinese character, and tells you what words mean when you point at them.</p>
+      <p class="note">The two characters on the left say “zhùyīn”, the name of the pronunciation symbols themselves.</p>
+    </div>
+  </header>
+
+  <!-- primer -->
+  <section>
+    <h2>How to read the little symbols</h2>
+    <p class="lede">A Chinese character doesn’t tell you how to say it. Children in Taiwan learn with zhuyin, also called bopomofo: 37 sound symbols written in a small column right beside each character. Read the column from top to bottom, then apply the tone mark.</p>
+    <div class="primer">
+      <div class="sheet anatomy" id="anat">
+        <div class="big live" id="t-yin">銀</div>
+        <svg class="ink" id="ink-anat"></svg>
+        <p class="means" translate="no">Together: <b>yín</b>, meaning “silver”.</p>
+      </div>
+      <div class="sheet tones">
+        <h3>The tone changes the word</h3>
+        <p class="sub">Mandarin has four tones and a light one. Same sound, different pitch, different meaning:</p>
+        <div class="trow">
+          <div><div class="tch live">媽</div><svg class="curve" viewBox="0 0 70 44"><path d="M8 10 H62" stroke="#C2362B" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg><div class="py">mā</div><div class="en">mother</div></div>
+          <div><div class="tch live">麻</div><svg class="curve" viewBox="0 0 70 44"><path d="M8 36 L62 8" stroke="#C2362B" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg><div class="py">má</div><div class="en">hemp</div></div>
+          <div><div class="tch live">馬</div><svg class="curve" viewBox="0 0 70 44"><path d="M8 18 Q30 50 62 8" stroke="#C2362B" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg><div class="py">mǎ</div><div class="en">horse</div></div>
+          <div><div class="tch live">罵</div><svg class="curve" viewBox="0 0 70 44"><path d="M8 8 L62 38" stroke="#C2362B" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg><div class="py">mà</div><div class="en">to scold</div></div>
+          <div><div class="tch live">嗎</div><svg class="curve" viewBox="0 0 70 44"><circle cx="35" cy="26" r="5" fill="#C2362B"/></svg><div class="py">ma</div><div class="en">question word</div></div>
+        </div>
+        <p class="legend"><b>No mark</b> means high and flat. <b>ˊ</b> rises, <b>ˇ</b> dips and comes back up, <b>ˋ</b> falls. A <b>dot above</b> the column means short and light.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- before / after -->
+  <section class="feature">
+    <h2>Zhuyin on every page</h2>
+    <p class="lede">Turn it on and any website written in Traditional Chinese (Taiwan’s script) gets zhuyin next to each character: articles, menus, headlines, YouTube comments.</p>
+    <div class="pair">
+      <div>
+        <div class="frame"><div class="bar"><span class="tag">Before</span><span class="url">sanbu-diary.example/taipei-weekend</span></div>
+          <div class="crop" data-src="shots/before.png" data-x="0" data-y="0" data-w="640" data-h="330"></div></div>
+      </div>
+      <div class="with-arrow">
+        <div class="frame"><div class="bar"><span class="tag">After</span><span class="url">sanbu-diary.example/taipei-weekend</span></div>
+          <div class="crop" data-src="shots/after.png" data-x="0" data-y="0" data-w="640" data-h="330"></div></div>
+      </div>
+    </div>
+    <p class="cap" translate="no">The page itself is untouched otherwise. Copy text and you get clean Chinese, without the symbols mixed in.</p>
+  </section>
+
+  <!-- hover + select -->
+  <section class="pair">
+    <div class="feature">
+      <h3>Point at a word to see what it means</h3>
+      <p class="lede">The card shows the word with its zhuyin in large print and a speaker button that reads it aloud. Then the English for the whole word, and what each character means on its own. The one under your mouse is highlighted.</p>
+      <div class="frame"><div class="crop" data-src="shots/hover.png" data-x="20" data-y="236" data-w="620" data-h="320"></div></div>
+      <p class="cap" translate="no">Here, “pearls + milk + tea” is bubble tea. The character under the cursor means <b>bead</b>.</p>
+    </div>
+    <div class="feature">
+      <h3>Select a sentence to translate it</h3>
+      <p class="lede">Highlight any text and a box shows the English translation, plus a word-by-word breakdown for short phrases.</p>
+      <div class="frame"><div class="crop" data-src="shots/select.png" data-x="20" data-y="152" data-w="620" data-h="320"></div></div>
+      <p class="cap" translate="no">Each word in the list has its zhuyin in blue. The speaker button reads the selection aloud. Pinyin can be switched on in the menu.</p>
+    </div>
+  </section>
+
+  <!-- context -->
+  <section class="feature">
+    <h2>It reads words, not just characters</h2>
+    <p class="lede" translate="no">Some characters are pronounced differently depending on the word they’re in. The add-on looks at whole words, so it picks the right reading. Look at the same character 行 in two words:</p>
+    <div class="context">
+      <div class="sheet ctx" id="ctx1"><div class="w live">行人</div><svg class="ink"></svg><p class="gl" translate="no"><i>xíng-rén</i>: pedestrian. Here 行 is <b>xíng</b>, “to walk”.</p></div>
+      <div class="sheet ctx" id="ctx2"><div class="w live">銀行</div><svg class="ink"></svg><p class="gl" translate="no"><i>yín-háng</i>: bank. Here 行 is <b>háng</b>, “a business”.</p></div>
+    </div>
+  </section>
+
+  <!-- compact -->
+  <section class="feature">
+    <h2>Pop-ups and buttons stay usable</h2>
+    <p class="lede">Zhuyin makes text about 40% wider. Small boxes like newsletter pop-ups, buttons and sticky headers weren’t built for that, so there the symbols are hidden. Point at a word and they appear in the card instead.</p>
+    <div class="pair">
+      <div><div class="frame"><div class="bar"><span class="tag">Zhuyin everywhere</span></div>
+        <div class="crop" data-src="shots/modal-full.png" data-x="141" data-y="107" data-w="358" data-h="116"></div></div>
+        <p class="cap" translate="no">The text no longer fits, and the buttons cover it.</p></div>
+      <div><div class="frame"><div class="bar"><span class="tag">Compact mode</span></div>
+        <div class="crop" data-src="shots/modal-compact.png" data-x="141" data-y="107" data-w="358" data-h="116"></div></div>
+        <p class="cap" translate="no">The text fits again. The page’s article text keeps its zhuyin.</p></div>
+    </div>
+  </section>
+
+  <!-- controls -->
+  <section style="margin-bottom:0">
+    <h2>Controls</h2>
+    <p class="lede">Everything else lives in the add-on’s menu: turn it on or off for each website, move the symbols above the characters instead of beside them, and choose the translation service.</p>
+    <div class="keys">
+      <div class="key"><kbd>Alt + Z</kbd><p>Show or hide the zhuyin on the page.</p></div>
+      <div class="key"><kbd>Alt + T</kbd><p>Translate the selected text when automatic translation is off.</p></div>
+      <div class="key"><kbd>Esc</kbd><p>Close the translation box or word card.</p></div>
+      <div class="key"><kbd>Menu</kbd><p>Turn it on or off for this site, change the layout, pick the translation service.</p></div>
+    </div>
+    <div class="foot" translate="no">
+      <p>A Violentmonkey userscript for Firefox and Chrome. Pronunciations follow Taiwan’s standard, using the McBopomofo dictionary from the yt-zhuyin project. Word meanings come from CC-CEDICT (CC BY-SA 4.0, MDBG).</p>
+      <p>Screenshots show the add-on running on a demo page.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+  // crops: screenshots are 2x; data-* are CSS px of the original 640-wide page
+  document.querySelectorAll('.crop').forEach(c => {
+    const { src, x, y, w, h } = c.dataset;
+    const box = c.parentElement.getBoundingClientRect().width - 4;
+    const k = box / +w;
+    c.style.height = (+h * k) + 'px';
+    const img = new Image(); img.src = src;
+    img.style.width = (640 * k) + 'px'; img.style.left = (-x * k) + 'px'; img.style.top = (-y * k) + 'px';
+    c.appendChild(img);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "zhuyin-anywhere-assets",
+  "private": true,
+  "description": "Renders the README images for zhuyin-anywhere with the real userscript in headless Chromium",
+  "scripts": {
+    "fetch": "sh fetch-deps.sh",
+    "build": "node build.js",
+    "poster": "node build.js --poster"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}
