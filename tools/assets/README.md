@@ -39,6 +39,7 @@ With the same Chromium, fonts and dictionaries, the output is byte-identical to 
 | `after.png` | Page with the script |
 | `hover.png` | Mouse moved onto 珠 in 珍珠奶茶 and held for 1.6 s, so the hover card opens (large zhuyin, speaker button) |
 | `select.png` | 我們先去銀行換錢 selected, then a mouseup, so the translation popup opens with its word list (zhuyin, since pinyin is off by default) |
+| `hover-dark.png`, `select-dark.png` | The same two states with Chromium in dark mode: `site.html` has a dark scheme, and the popups follow it (theme `auto`). For `dark.png` |
 | `modal-full.png` | Newsletter pop-up with `compactChrome: false` |
 | `modal-compact.png` | Newsletter pop-up with the default compact mode |
 

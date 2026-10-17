@@ -45,19 +45,31 @@ Hovering over a word opens a card with:
 - the English for the whole word,
 - what each character means on its own, with the one under your cursor highlighted.
 
+The script groups characters into words with a typing (IME) dictionary, which also lists short phrases such as 我在 or 最好的. When CC-CEDICT has no entry for such a group, the card covers only the CC-CEDICT word under your cursor (最好 or 的), and only that part is highlighted.
+
+On a phone or tablet (Firefox for Android with Violentmonkey), tap a word to open its card.
+
 In this example, "pearls + milk + tea" turns out to be bubble tea.
 
 <p align="center"><img src="docs/img/hover.png" alt="Hover card for 珍珠奶茶: pearl milk tea, bubble milk tea; 珍 precious thing, 珠 bead (highlighted), 奶 breast, 茶 tea" width="560"></p>
 
 ### Select text to translate it
 
-Highlight any text to get the English translation, with a speaker button that reads the text aloud. Selections of up to 24 characters also get a word-by-word breakdown with each word's zhuyin. Pinyin (the Latin-letter spelling of the same sounds) can be switched on in the menu.
+Highlight any text to get the English translation, with a speaker button that reads the text aloud. Selections of up to 24 characters also get a word-by-word breakdown with each word's zhuyin and its own speaker button. Pinyin (the Latin-letter spelling of the same sounds) can be switched on in the menu. On touch screens, long-press to select; the translation opens once the selection stops changing.
+
+Translations and voice clips are cached, so text you've already looked up on a site loads instantly and doesn't ask Google again.
 
 While the translation is open, the word card appears beside it rather than on top of it.
 
 <p align="center"><img src="docs/img/select.png" alt="Selected sentence 我們先去銀行換錢 with a popup showing pinyin, the English translation and a word list" width="560"></p>
 
 <sub>The screenshots come from a demo page. The English sentence in this one was supplied offline, but the word list underneath is real dictionary output.</sub>
+
+### Dark popups
+
+The card and the translation box follow your system's light or dark setting. To always use one of them, set **Popup theme** in the menu.
+
+<p align="center"><img src="docs/img/dark.png" alt="The hover card for 珍珠奶茶 and the translation popup for 我們先去銀行換錢, both with dark backgrounds" width="820"></p>
 
 ### It reads words, not single characters
 
@@ -129,6 +141,8 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 | Translator | `google` (Google's free web endpoint, no key) or `local` (yt-zhuyin's `asr_server.py`, opus-mt, offline) |
 | Pinyin in translation | Off: the word list shows zhuyin. On: a pinyin line under the selected text, and pinyin in the word list. |
 | Translate on select | On, or off so that only <kbd>Alt</kbd>+<kbd>T</kbd> translates |
+| Popup theme | `auto` (follows the system) → `dark` → `light` |
+| Cache | Size of the translation and voice cache per site in MB, 100 by default. 0 turns it off. |
 
 ## How it works
 
@@ -143,6 +157,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
   - Layout is measured in batches: once before and once after each slice. That's what drives the overflow guard behind compact mode.
 - **Meanings:** CC-CEDICT, sorted so the entry whose reading matches the zhuyin on the page comes first. That includes CC-CEDICT's "Taiwan pr." notes.
 - **UI:** the hover card and translation popup live in a closed shadow root, so page styles can't affect them.
+- **Cache:** Google translations and voice clips are stored in IndexedDB, and the least recently used are dropped first once the size limit is reached. Only audio that decoded and translations that parsed are stored, so an error page is never cached.
 
 ## Known limitations
 
@@ -151,6 +166,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 - **React/Vue sites:** replacing text nodes can crash some single-page apps on their next re-render. If a site breaks, set it to `off` from the menu.
 - **Google translation:** the `google` translator uses an unofficial endpoint and can occasionally be rate-limited. The popup then shows an error instead of the translation.
 - **Read aloud:** uses Google Translate's unofficial voice endpoint, with a Taiwan Mandarin speaker. When it can't be reached, the browser's own voice reads instead; on Linux that is often espeak-ng, which sounds robotic. The button's tooltip says when that happened and why. Google chooses the reading itself, so a single character can come out differently from the zhuyin on the page.
+- **Cache is per site:** IndexedDB belongs to the website's origin, so each site keeps its own cache, up to the set size each. Userscript storage is shared across sites, but Violentmonkey loads all of it into every page, which would slow every page load. Clearing a site's data in the browser also clears its cache.
 - **Simplified Chinese:** pages in Simplified Chinese are skipped in `auto` mode, because the dictionary covers Traditional characters.
 
 ## Related
