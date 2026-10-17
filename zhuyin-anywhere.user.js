@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         注音 anywhere (Traditional Mandarin → zhuyin + select-to-translate)
 // @namespace    local.zhuyin-anywhere
-// @version      0.4.1
-// @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its CC-CEDICT gloss; select text to get an English translation.
+// @version      0.5.0
+// @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its CC-CEDICT gloss; select text to get an English translation. Speaker buttons read words and selections aloud in Taiwan Mandarin.
 // @match        *://*/*
 // @match        file:///*
 // @noframes
@@ -20,6 +20,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setClipboard
 // @connect      translate.googleapis.com
+// @connect      translate.google.com
 // @connect      127.0.0.1
 // @connect      localhost
 // @connect      www.mdbg.net
@@ -45,8 +46,11 @@
  *     zhuyin on the page comes first (incl. CEDICT's "Taiwan pr. [...]" notes).
  *  6. Selection → English popup (shadow DOM, isolated from page CSS). Google gtx endpoint by default,
  *     or yt-zhuyin's local asr_server /translate (opus-mt) if you run it.
+ *  7. Read aloud: speaker button on both popups. Google's zh-TW voice (Taiwan Mandarin) as MP3, played
+ *     through Web Audio, which page CSP media-src can't block. Offline or refused → the browser's own
+ *     voice (speechSynthesis).
  *
- * Hotkeys: Alt+Z show/hide zhuyin · Alt (held) + hover shows gloss in 'alt' mode · Alt+T translate selection (when autoTranslate is off) · Esc closes popup
+ * Hotkeys: Alt+Z show/hide zhuyin · Alt (held) + hover shows gloss in 'alt' mode · Alt+T translate selection (when autoTranslate is off) · Esc closes popup and stops reading aloud
  */
 
 (() => {
@@ -62,10 +66,13 @@
     localServer: 'http://127.0.0.1:8765',             // yt-zhuyin asr_server.py
     targetLang: 'en',
     autoTranslate: GM_getValue('autoTranslate', true),// popup on every CJK selection; false = Alt+T only
+    pinyin: GM_getValue('pinyin', false),             // selection popup: pinyin line, and pinyin instead of zhuyin in the word list
     compactChrome: GM_getValue('compactChrome', true),// buttons + fixed/sticky boxes (popups, headers): zhuyin hidden, gloss on hover
     overflowGuard: true,                              // a box that starts overflowing after annotation goes compact
     gloss: GM_getValue('gloss', 'hover'),             // 'hover' | 'alt' (hold Alt while hovering) | 'off' (plain title tooltip)
     glossDelay: 220,                                  // ms of hover before the card shows
+    glossHideDelay: 400,                              // ms off the word and card before the card hides
+    glossSlack: 40,                                   // px around the word and card that still count as on them
     glossMaxEntries: 4,                               // CEDICT entries per word
     glossMaxDefs: 6,                                  // definitions per entry
     selWordList: 24,                                  // selection popup: list word glosses if ≤ this many Han chars
@@ -221,6 +228,7 @@
       ['zy-run[data-c] zy-z', 'display:none'],
       ['zy-run[data-c] zy-w', 'margin-right:0'],
       ['html.zyh-hidden zy-w', 'margin-right:0'],
+      ['zy-w[data-on]', 'background:rgba(66,133,244,.16);border-radius:.2em;box-shadow:0 0 0 .1em rgba(66,133,244,.16)'],   // word of the open card
     ];
     const imp = (decls) => decls.split(';').map(d => d.trim()).filter(Boolean)
       .map(d => (d.startsWith('--') ? d : d + '!important')).join(';');
@@ -515,7 +523,7 @@
   const tCache = new Map();
   function gmFetch(opts) {
     return new Promise((resolve, reject) => GM_xmlhttpRequest({ timeout: 15000, ...opts,
-      onload: (r) => (r.status >= 200 && r.status < 300 ? resolve(r.responseText) : reject(new Error('HTTP ' + r.status))),
+      onload: (r) => (r.status >= 200 && r.status < 300 ? resolve(opts.responseType ? r.response : r.responseText) : reject(new Error('HTTP ' + r.status))),
       onerror: () => reject(new Error('network error')), ontimeout: () => reject(new Error('timeout')) }));
   }
   async function translate(text) {
@@ -537,6 +545,92 @@
     return out;
   }
 
+  // ---------------------------------------------------------------- read aloud
+  // Google's zh-TW voice, decoded and played through Web Audio: an <audio> element would be subject to
+  // the page's CSP media-src, Web Audio isn't. Offline or refused → the browser's own voice, which on
+  // Linux is often espeak-ng: worse, but better than silence.
+  const ttsCache = new Map();   // chunk → Promise<AudioBuffer>
+  let actx = null, playing = null;
+  // Google takes at most 200 characters per request: split at punctuation, cut hard if a run is longer.
+  function ttsChunks(text) {
+    const out = [];
+    let cur = '';
+    for (let p of text.split(/(?<=[。！？；，、,.!?;\n])/)) {
+      if (cur && cur.length + p.length > 200) { out.push(cur); cur = ''; }
+      while (p.length > 200) { out.push(p.slice(0, 200)); p = p.slice(200); }
+      cur += p;
+    }
+    if (cur.trim()) out.push(cur);
+    return out;
+  }
+  function ttsBuffer(chunk) {
+    if (!ttsCache.has(chunk)) {
+      const url = 'https://translate.google.com/translate_tts?ie=UTF-8&client=gtx&tl=zh-TW&q=' + encodeURIComponent(chunk);
+      const p = gmFetch({ method: 'GET', url, responseType: 'arraybuffer' }).then(b => actx.decodeAudioData(b));
+      p.catch(() => ttsCache.delete(chunk));
+      ttsCache.set(chunk, p);
+    }
+    return ttsCache.get(chunk);
+  }
+  function speakBrowser(text, me) {
+    const voices = speechSynthesis.getVoices();
+    const voice = voices.find(v => /^zh[-_]TW/i.test(v.lang)) || voices.find(v => /^(cmn|zh)(?![-_](HK|MO))/i.test(v.lang));
+    if (!voice) return Promise.reject(new Error('no Mandarin voice in this browser'));
+    return new Promise((res, rej) => {
+      const u = me.utter = new SpeechSynthesisUtterance(text);
+      u.voice = voice; u.lang = voice.lang;
+      u.onend = res; u.onerror = (e) => rej(new Error(e.error));
+      speechSynthesis.speak(u);
+    });
+  }
+  function stopSpeaking() {
+    if (!playing) return;
+    const me = playing; playing = null;
+    me.stopped = true;
+    try { me.src?.stop(); } catch {}
+    if (me.utter) speechSynthesis.cancel();
+    me.btn.classList.remove('on');
+  }
+  // Click on a speaker: start reading; a second click on the same one stops it.
+  async function speak(text, btn) {
+    const same = playing?.btn === btn;
+    stopSpeaking();
+    text = text.trim();
+    if (same || !text) return;
+    actx ??= new AudioContext();
+    actx.resume();   // still inside the click: autoplay rules want the gesture in this task
+    speechSynthesis.getVoices();   // Chrome fills the list lazily
+    const me = playing = { btn, stopped: false, src: null, utter: null };
+    btn.classList.remove('err'); btn.classList.add('on'); btn.title = 'Stop';
+    const chunks = ttsChunks(text);
+    let i = 0, title = 'Read aloud';
+    try {
+      for (; i < chunks.length; i++) {
+        const buf = await ttsBuffer(chunks[i]);
+        if (i + 1 < chunks.length) ttsBuffer(chunks[i + 1]).catch(() => {});   // fetch the next while this plays
+        if (me.stopped) return;
+        await new Promise((res) => {
+          const s = me.src = actx.createBufferSource();
+          s.buffer = buf; s.connect(actx.destination); s.onended = res; s.start();
+        });
+        if (me.stopped) return;
+      }
+    } catch (e) {
+      if (me.stopped) return;
+      try {
+        await speakBrowser(chunks.slice(i).join(''), me);
+        title = `Read aloud (browser voice; Google voice failed: ${e.message})`;
+      } catch (e2) {
+        if (me.stopped) return;
+        btn.classList.add('err');
+        title = `Read aloud failed: Google voice: ${e.message}; browser voice: ${e2.message}`;
+      }
+    }
+    if (me.stopped) return;
+    playing = null;
+    btn.classList.remove('on'); btn.title = title;
+  }
+
   // Popup lives in a closed shadow root: page CSS can't touch it, and our CSS can't leak out.
   let pop = null;
   function popup() {
@@ -550,21 +644,27 @@
         box-shadow:0 6px 28px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px)}
       .src{font-size:13px;color:#aaa;margin-bottom:6px;max-height:4.4em;overflow:hidden;font-family:"Noto Sans TC","PingFang TC",sans-serif}
       .py{font-size:12px;color:#8ab4f8;margin-bottom:6px;max-height:3em;overflow:hidden}
+      .py:empty{display:none}
       .en{white-space:pre-wrap;word-break:break-word}
       .en.err{color:#ff8a80}
       .bar{display:flex;gap:6px;margin-top:8px;font-size:12px;color:#888;align-items:center}
       .bar span{flex:1}
+      .say{display:inline-flex;align-items:center;padding:2px 6px}
+      .say.on{color:#8ab4f8;background:rgba(138,180,248,.22)}
+      .say.err{color:#ff8a80}
+      .hw .say{align-self:center;padding:6px}
+      .hw .say svg{width:18px;height:18px}
       button{all:unset;cursor:pointer;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.08);color:#ddd;font-size:12px}
       button:hover{background:rgba(255,255,255,.16)}
       .words{margin-top:8px;padding-top:6px;border-top:1px solid rgba(127,127,127,.25);font-size:13px;max-height:40vh;overflow:auto}
       .wl{display:grid;grid-template-columns:auto auto 1fr;gap:1px 8px;align-items:baseline}
       .wl .h{font-family:"Noto Sans TC","PingFang TC",sans-serif;font-size:15px}
-      .wl .p{color:#8ab4f8;font-size:12px;white-space:nowrap}
+      .wl .p{color:#8ab4f8;font-size:12px;white-space:nowrap;font-family:"Noto Sans TC","PingFang TC",sans-serif}
       .wl .d{color:inherit;opacity:.85;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-      .gl{max-width:min(380px,calc(100vw - 24px));padding:9px 11px}
-      .hw{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px}
-      .hw .han{font-size:22px;font-family:"Noto Sans TC","PingFang TC",sans-serif;line-height:1.1}
-      .hw .zy{font-size:13px;color:#aaa;font-family:"Noto Sans TC","PingFang TC",sans-serif}
+      .gl{max-width:min(480px,calc(100vw - 24px));padding:12px 15px;font-size:15px}
+      .hw{display:flex;align-items:baseline;gap:6px 12px;flex-wrap:wrap;margin-bottom:6px}
+      .hw .han{font-size:32px;font-family:"Noto Sans TC","PingFang TC",sans-serif;line-height:1.1}
+      .hw .zy{font-size:20px;color:#ccc;letter-spacing:.04em;font-family:"Noto Sans TC","PingFang TC",sans-serif}
       .hw .pyl{font-size:13px;color:#8ab4f8}
       .ent{margin-top:4px}
       .ent.dim{opacity:.55}
@@ -572,37 +672,49 @@
       .ent .tag{font-size:10px;padding:0 4px;border-radius:4px;background:rgba(138,180,248,.18);color:#8ab4f8;margin-right:6px}
       .ent .defs{display:block}
       .ent .defs span+span::before{content:" · ";opacity:.5}
-      .parts{margin-top:6px;padding-top:5px;border-top:1px solid rgba(127,127,127,.25);font-size:12px;opacity:.85}
-      .parts b{font-weight:400;font-family:"Noto Sans TC","PingFang TC",sans-serif;font-size:14px;margin-right:6px}
+      .parts{margin-top:8px;padding-top:6px;border-top:1px solid rgba(127,127,127,.25);font-size:13px;opacity:.85}
+      .parts b{font-weight:400;font-family:"Noto Sans TC","PingFang TC",sans-serif;font-size:17px;margin-right:6px}
       .part{padding:1px 4px;border-radius:4px;margin:0 -4px}
       .part.on{background:rgba(138,180,248,.16);opacity:1}
-      .note{font-size:12px;opacity:.6;margin-top:4px}
+      .note{font-size:13px;opacity:.6;margin-top:4px}
       .foot{font-size:10px;opacity:.4;margin-top:6px;text-align:right}
       @media (prefers-color-scheme: light){.box{color:#1a1a1a;background:rgba(252,252,252,.97);border-color:rgba(0,0,0,.1)}
-        .src,.hw .zy{color:#555}.py,.wl .p,.hw .pyl,.ent .epy{color:#1a5fb4}.ent .tag{color:#1a5fb4;background:rgba(26,95,180,.1)}
-        button{background:rgba(0,0,0,.06);color:#222}button:hover{background:rgba(0,0,0,.12)}}
+        .src{color:#555}.hw .zy{color:#333}.py,.wl .p,.hw .pyl,.ent .epy{color:#1a5fb4}.ent .tag{color:#1a5fb4;background:rgba(26,95,180,.1)}
+        button{background:rgba(0,0,0,.06);color:#222}button:hover{background:rgba(0,0,0,.12)}
+        .say.on{color:#1a5fb4;background:rgba(26,95,180,.12)}}
     </style>
     <div class="box tr"><div class="src"></div><div class="py"></div><div class="en"></div><div class="words"></div>
-      <div class="bar"><span class="via"></span><button class="cp">copy</button><button class="x">✕</button></div></div>
+      <div class="bar"><span class="via"></span><button class="say" title="Read aloud"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button><button class="cp">copy</button><button class="x">✕</button></div></div>
     <div class="box gl"></div>`;
     document.documentElement.appendChild(hostEl);
     const $ = (s) => sh.querySelector(s);
-    pop = { hostEl, box: $('.tr'), gl: $('.gl'), src: $('.src'), py: $('.py'), en: $('.en'), via: $('.via'), words: $('.words') };
+    pop = { hostEl, box: $('.tr'), gl: $('.gl'), src: $('.src'), py: $('.py'), en: $('.en'), via: $('.via'), words: $('.words'), say: $('.say') };
     $('.x').onclick = hidePopup;
     $('.cp').onclick = () => GM_setClipboard(pop.en.textContent);
+    pop.say.onclick = () => speak(pop.src.textContent, pop.say);
     pop.box.addEventListener('mousedown', (e) => e.stopPropagation());
     pop.gl.addEventListener('mousedown', (e) => e.stopPropagation());
     return pop;
   }
-  function hidePopup() { if (pop) pop.box.style.display = 'none'; }
+  function hidePopup() { if (pop) { pop.box.style.display = 'none'; if (playing?.btn === pop.say) stopSpeaking(); } }
 
+  // Below the anchor, else above it. The hover card also keeps off an open translation popup: below or
+  // above the word if that's clear of it, else beside, below or above the popup; overlapping only if the
+  // window is too small for any of those.
   function place(rect, b = pop.box) {
     b.style.display = 'block'; b.style.left = '0px'; b.style.top = '0px';
     const w = b.offsetWidth, h = b.offsetHeight, m = 8;
-    let x = Math.min(Math.max(m, rect.left), innerWidth - w - m);
-    let y = rect.bottom + m;
-    if (y + h > innerHeight - m) y = Math.max(m, rect.top - h - m);
-    b.style.left = x + 'px'; b.style.top = y + 'px';
+    const g = b === pop.box ? m : 2;   // hover card hugs its word: less way to travel, fewer words to cross
+    const x = Math.min(Math.max(m, rect.left), innerWidth - w - m);
+    const below = rect.bottom + g, above = rect.top - h - g;
+    let spot = [x, below + h > innerHeight - m ? Math.max(m, above) : below];
+    if (b !== pop.box && pop.box.style.display === 'block') {
+      const t = pop.box.getBoundingClientRect(), y = Math.min(Math.max(m, rect.top), innerHeight - h - m);
+      const ok = ([sx, sy]) => sx >= m && sx + w <= innerWidth - m && sy >= m && sy + h <= innerHeight - m &&
+        (sx >= t.right + m / 2 || sx + w <= t.left - m / 2 || sy >= t.bottom + m / 2 || sy + h <= t.top - m / 2);
+      spot = [[x, below], [x, above], [t.right + m, y], [t.left - w - m, y], [x, t.bottom + m], [x, t.top - h - m]].find(ok) ?? spot;
+    }
+    b.style.left = spot[0] + 'px'; b.style.top = spot[1] + 'px';
   }
 
   // Pinyin line for the popup, from the same segmenter so it matches the zhuyin on the page.
@@ -657,7 +769,8 @@
       if (!e && w.chars.length > 1) def = w.chars.map((ch, i) => { const x = lookup(ch, zys ? [zys[i]] : null)[0]; return x ? shortDef(x).split(';')[0] : '?'; }).join(' + ');
       const cell = (cls, t) => { const d = document.createElement('span'); d.className = cls; d.textContent = t; grid.appendChild(d); };
       cell('h', word);
-      cell('p', zys ? zys.map(zhuyinToPinyin).join('') : (e ? numToMarked(e.num).replace(/ /g, '') : ''));
+      cell('p', !CFG.pinyin ? (zys ? zys.map(normZhuyin).join(' ') : '')
+        : zys ? zys.map(zhuyinToPinyin).join('') : (e ? numToMarked(e.num).replace(/ /g, '') : ''));
       cell('d', def || '—');
     }
     if (!grid.childElementCount) return;
@@ -674,7 +787,7 @@
     const rect = sel.getRangeAt(0).getBoundingClientRect();
     const p = popup(), id = ++reqId;
     p.src.textContent = text;
-    try { p.py.textContent = text.length <= 300 ? pinyinOf(text) : ''; } catch { p.py.textContent = ''; }
+    try { p.py.textContent = CFG.pinyin && text.length <= 300 ? pinyinOf(text) : ''; } catch { p.py.textContent = ''; }
     p.en.className = 'en'; p.en.textContent = '…';
     p.via.textContent = CFG.translator === 'local' ? 'local opus-mt' : 'Google';
     p.words.replaceChildren(); p.words.style.display = 'none';
@@ -696,13 +809,33 @@
   let hoverWord = null, glossWord = null, glossChar = null, showT = 0, hideT = 0;
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
-  function hideGloss() { clearTimeout(showT); if (pop) pop.gl.style.display = 'none'; glossWord = null; }
-  function scheduleHide() { clearTimeout(hideT); hideT = setTimeout(hideGloss, 200); }
+  function hideGloss() { clearTimeout(showT); if (pop) pop.gl.style.display = 'none'; glossWord?.removeAttribute('data-on'); glossWord = null; }
+  // Slipping a little off the word or card isn't leaving: while the pointer stays close, check again.
+  let mx = 0, my = 0;
+  document.addEventListener('mousemove', (e) => { mx = e.clientX; my = e.clientY; }, { capture: true, passive: true });
+  const near = (r, d = CFG.glossSlack) => mx > r.left - d && mx < r.right + d && my > r.top - d && my < r.bottom + d;
+  // The strip between the word and its card above or below it overlaps the next line's words; crossing it
+  // on the way to the card mustn't switch the card to them.
+  function onWayToCard(x, y) {
+    if (!glossWord || pop.gl.style.display !== 'block') return false;
+    const a = glossWord.getBoundingClientRect(), b = pop.gl.getBoundingClientRect(), d = 2;
+    if (x < b.left - d || x > b.right + d) return false;
+    return b.top >= a.bottom ? y >= a.bottom - d && y <= b.top + d : b.bottom <= a.top && y >= b.bottom - d && y <= a.top + d;
+  }
+  function scheduleHide() {
+    clearTimeout(hideT);
+    hideT = setTimeout(() => {
+      if (glossWord && (near(pop.gl.getBoundingClientRect()) || near(glossWord.getBoundingClientRect()))) scheduleHide();
+      else hideGloss();
+    }, CFG.glossHideDelay);
+  }
 
   // Meaning-only card: the word's senses for the reading shown on the page, then what the hovered
   // character means on its own. No pinyin — the zhuyin is already on the page.
   async function showGloss(w, cc = null) {
     const p = popup();
+    if (glossWord !== w) glossWord?.removeAttribute('data-on');
+    w.setAttribute('data-on', '');
     glossWord = w; glossChar = cc;
     const cells = [...w.querySelectorAll('zy-c')];
     const chars = cells.map(c => c.firstChild?.nodeValue ?? '');
@@ -711,9 +844,13 @@
     const known = zys.length === chars.length && !zys.includes('?');
     const hi = cc ? cells.indexOf(cc) : -1;
     const rect = w.getBoundingClientRect();
-    const hw = el('div', 'hw'); hw.append(el('span', 'han', word));
-    // zhuyin isn't on the page for compact (UI) text or when hidden with Alt+Z: show it here instead
-    if (known && (w.closest('zy-run[data-c]') || document.documentElement.classList.contains('zyh-hidden')))
+    // Speaker first: the card opens under the word's left edge, so it's the shortest way from the word.
+    const say = p.say.cloneNode(true); say.className = 'say'; say.title = 'Read aloud';
+    say.onclick = () => speak(word, say);
+    const hw = el('div', 'hw'); hw.append(say, el('span', 'han', word));
+    // Larger than on the page, where it's half the text size and hard to read; also the only place it
+    // shows for compact (UI) text or when hidden with Alt+Z.
+    if (known)
       hw.append(el('span', 'zy', zys.map(normZhuyin).join(' ')));
     p.gl.replaceChildren(hw);
     if (!CEDICT) {
@@ -764,8 +901,11 @@
 
   document.addEventListener('mouseover', (e) => {
     if (CFG.gloss === 'off') return;
-    if (pop && e.composedPath().includes(pop.hostEl)) { clearTimeout(hideT); return; }   // moved onto the card
+    if (pop && e.composedPath().includes(pop.hostEl)) {   // moved onto the card: keep it, drop words crossed on the way
+      clearTimeout(hideT); clearTimeout(showT); hoverWord = glossWord; return;
+    }
     const w = e.target.closest?.('zy-w') ?? null;
+    if (w && w !== glossWord && onWayToCard(e.clientX, e.clientY)) { clearTimeout(hideT); return; }
     const cc = e.target.closest?.('zy-c') ?? null;
     if (w && w === hoverWord) {   // moved to another character of the same word: just move the highlight
       if (glossWord === w && cc !== glossChar && CEDICT) showGloss(w, cc);
@@ -789,7 +929,7 @@
   document.addEventListener('mousedown', (e) => { if (!pop || !e.composedPath().includes(pop.hostEl)) { hidePopup(); hideGloss(); } }, true);
   document.addEventListener('keyup', (e) => { if (e.key === 'Alt' && CFG.gloss === 'alt' && hoverWord) e.preventDefault(); }, true);   // keep Firefox's menu bar shut
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { hidePopup(); hideGloss(); }
+    if (e.key === 'Escape') { hidePopup(); hideGloss(); stopSpeaking(); }
     if (e.key === 'Alt' && CFG.gloss === 'alt' && hoverWord && !e.repeat) { e.preventDefault(); showGloss(hoverWord, null); return; }
     if (!e.altKey || e.ctrlKey || e.metaKey) return;
     const k = e.code;
@@ -829,6 +969,9 @@
     }));
     menuIds.push(GM_registerMenuCommand(`Translator: ${CFG.translator} → ${CFG.translator === 'google' ? 'local' : 'google'}`, () => {
       CFG.translator = CFG.translator === 'google' ? 'local' : 'google'; GM_setValue('translator', CFG.translator); buildMenu();
+    }));
+    menuIds.push(GM_registerMenuCommand(`Pinyin in translation: ${CFG.pinyin ? 'on → off' : 'off → on'}`, () => {
+      CFG.pinyin = !CFG.pinyin; GM_setValue('pinyin', CFG.pinyin); buildMenu();
     }));
     menuIds.push(GM_registerMenuCommand(`Translate on select: ${CFG.autoTranslate ? 'on → off (Alt+T)' : 'off → on'}`, () => {
       CFG.autoTranslate = !CFG.autoTranslate; GM_setValue('autoTranslate', CFG.autoTranslate); buildMenu();

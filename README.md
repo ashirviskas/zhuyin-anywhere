@@ -41,6 +41,7 @@ When you turn it on, every Traditional Chinese character on the page gets its zh
 ### Point at a word to see what it means
 
 Hovering over a word opens a card with:
+- the word with its zhuyin in large print, and a speaker button that reads it aloud,
 - the English for the whole word,
 - what each character means on its own, with the one under your cursor highlighted.
 
@@ -50,7 +51,9 @@ In this example, "pearls + milk + tea" turns out to be bubble tea.
 
 ### Select text to translate it
 
-Highlight any text to get the English translation, plus pinyin (the Latin-letter spelling of the same sounds). Selections of up to 24 characters also get a word-by-word breakdown.
+Highlight any text to get the English translation, with a speaker button that reads the text aloud. Selections of up to 24 characters also get a word-by-word breakdown with each word's zhuyin. Pinyin (the Latin-letter spelling of the same sounds) can be switched on in the menu.
+
+While the translation is open, the word card appears beside it rather than on top of it.
 
 <p align="center"><img src="docs/img/select.png" alt="Selected sentence 我們先去銀行換錢 with a popup showing pinyin, the English translation and a word list" width="560"></p>
 
@@ -75,9 +78,28 @@ Boxes that already cut their text off on purpose, such as "Read more" previews a
 
 ## Install
 
-1. Install [Violentmonkey](https://violentmonkey.github.io/) for Firefox or Chrome.
-2. Click **[install zhuyin-anywhere.user.js](https://raw.githubusercontent.com/ashirviskas/zhuyin-anywhere/main/zhuyin-anywhere.user.js)**. Violentmonkey opens its install page. Updates are picked up automatically after that.
+1. Install [Violentmonkey](https://violentmonkey.github.io/) for your browser: [Firefox](https://addons.mozilla.org/firefox/addon/violentmonkey/), [Chrome](https://chrome.google.com/webstore/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag) or [Edge](https://microsoftedge.microsoft.com/addons/detail/eeagobfjdenkkddmbclomhiblgggliao).
+2. Click **[install zhuyin-anywhere.user.js](https://raw.githubusercontent.com/ashirviskas/zhuyin-anywhere/main/zhuyin-anywhere.user.js)**. Violentmonkey opens its install page; click **Install**. Updates are picked up automatically after that.
 3. Open any Traditional Chinese page.
+
+### Other ways to install
+
+- **From a link, by hand:** Violentmonkey icon → ⚙ (dashboard) → **+** → **Install from URL**, and paste the raw link above.
+- **A branch other than `main`:** use its raw link, `https://raw.githubusercontent.com/ashirviskas/zhuyin-anywhere/<branch>/zhuyin-anywhere.user.js`. Note that the script's `@updateURL` points at `main`, so auto-update brings you back to `main`.
+- **From a local clone:** open `zhuyin-anywhere.user.js` in the browser (drag it into a tab, or open `file:///path/to/zhuyin-anywhere/zhuyin-anywhere.user.js`). Violentmonkey opens its install page. Tick **Track local file before this window is closed** to reinstall on every save while you edit the script. In Chrome this needs file access, see below.
+
+### Local files (`file://` pages)
+
+The script also runs on HTML files opened from disk, but the browser has to let Violentmonkey in first:
+
+- **Chrome / Edge / Brave:** open `chrome://extensions` (`edge://extensions` in Edge) → Violentmonkey → **Details** → turn on **Allow access to file URLs**. Then reload the page.
+- **Firefox:** nothing to do; extensions can run on `file://` pages already.
+
+Then in the script itself:
+
+- Local files are treated as one site called *local files*, `auto` by default: zhuyin is added only when the page looks like Traditional Chinese.
+- To force it, open the Violentmonkey icon on a local page → this script → **Local files: auto → on**. Or press <kbd>Alt</kbd>+<kbd>Z</kbd> on a page the script skipped.
+- The dictionaries come from Violentmonkey's storage, so no network is needed on local pages, except for Google translation and read-aloud.
 
 On install, Violentmonkey downloads two dictionaries once and keeps them in its storage:
 - the zhuyin dictionary from [yt-zhuyin](https://github.com/ashirviskas/yt-zhuyin), about 6.5 MB,
@@ -93,7 +115,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 |---|---|
 | <kbd>Alt</kbd>+<kbd>Z</kbd> | Show or hide zhuyin. On a page the script skipped, this turns it on. |
 | <kbd>Alt</kbd>+<kbd>T</kbd> | Translate the selection (when automatic translation is off) |
-| <kbd>Esc</kbd> | Close the translation box or word card |
+| <kbd>Esc</kbd> | Close the translation box or word card, and stop reading aloud |
 
 ### Menu (Violentmonkey icon → this script)
 
@@ -105,6 +127,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 | Buttons & popups | `compact` or full zhuyin everywhere |
 | Word gloss | `hover`, `alt` (only while holding <kbd>Alt</kbd>), or `off` |
 | Translator | `google` (Google's free web endpoint, no key) or `local` (yt-zhuyin's `asr_server.py`, opus-mt, offline) |
+| Pinyin in translation | Off: the word list shows zhuyin. On: a pinyin line under the selected text, and pinyin in the word list. |
 | Translate on select | On, or off so that only <kbd>Alt</kbd>+<kbd>T</kbd> translates |
 
 ## How it works
@@ -127,6 +150,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 - **Word list senses:** the selection word list shows each word's first CC-CEDICT sense, which isn't always the one the sentence uses. 搭 comes out as "to put up", not "to take (the MRT)". The hover card lists more senses.
 - **React/Vue sites:** replacing text nodes can crash some single-page apps on their next re-render. If a site breaks, set it to `off` from the menu.
 - **Google translation:** the `google` translator uses an unofficial endpoint and can occasionally be rate-limited. The popup then shows an error instead of the translation.
+- **Read aloud:** uses Google Translate's unofficial voice endpoint, with a Taiwan Mandarin speaker. When it can't be reached, the browser's own voice reads instead; on Linux that is often espeak-ng, which sounds robotic. The button's tooltip says when that happened and why. Google chooses the reading itself, so a single character can come out differently from the zhuyin on the page.
 - **Simplified Chinese:** pages in Simplified Chinese are skipped in `auto` mode, because the dictionary covers Traditional characters.
 
 ## Related
@@ -140,3 +164,7 @@ MIT, see [`LICENSE`](LICENSE).
 - **Zhuyin readings:** [McBopomofo](https://github.com/openvanilla/McBopomofo) dictionary data (MIT), via yt-zhuyin. The script downloads it at install; this repo doesn't include it.
 - **Word meanings:** [CC-CEDICT](https://cc-cedict.org/) by MDBG ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)). Also downloaded at install, not included here.
 - **Fonts in the README images:** LXGW WenKai TC and Literata, both under the SIL Open Font License.
+
+## Images in this README
+
+The images are rendered from [`tools/assets/`](tools/assets/), which runs the real userscript in headless Chromium. Run `node build.js` there to regenerate them after changing the script.

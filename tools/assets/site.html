@@ -1,0 +1,26 @@
+<!doctype html><html lang="zh-TW"><head><meta charset="utf-8"><style>
+@import url(fonts.css);
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:#222;font:19px/1.75 "Noto Sans CJK TC",sans-serif}
+header{display:flex;align-items:center;gap:28px;padding:14px 32px;border-bottom:1px solid #e6e6e6}
+.logo{font:700 20px "Noto Sans CJK TC";color:#2f6f5e}
+nav{display:flex;gap:20px;font-size:15px;color:#555}
+main{padding:22px 32px 26px}
+h1{font-size:28px;margin:0 0 6px;line-height:1.5}
+.meta{font-size:13px;color:#888;margin-bottom:12px;font-family:Inter,sans-serif}
+p{margin:0 0 10px}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:360px;height:118px;padding:16px 18px;border-radius:10px;
+  background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.25);font-size:16px;line-height:1.6}
+.modal .b{position:absolute;bottom:14px;border:0;border-radius:6px;padding:5px 12px;font:14px "Noto Sans CJK TC"}
+.modal .ok{right:16px;background:#2f6f5e;color:#fff}.modal .no{right:84px;background:#eee;color:#444}
+.dim{position:fixed;inset:0;background:rgba(0,0,0,.35)}
+</style></head><body>
+<header><span class="logo">散步日記</span><nav><span>首頁</span><span>美食</span><span>旅行</span><span>關於</span></nav></header>
+<main>
+<h1>台北的週末</h1>
+<div class="meta">2026 · 10 · 17</div>
+<p id="p1">週末我們先去銀行換錢，然後搭捷運到夜市吃小吃。</p>
+<p id="p2">路邊的行人很多，大家都在排隊買珍珠奶茶。</p>
+</main>
+<div id="modalwrap" hidden><div class="dim"></div><div class="modal">歡迎訂閱我們的電子報，每週收到最新的旅遊文章。<button class="b ok">訂閱</button><button class="b no">暫時不要</button></div></div>
+</body></html>
