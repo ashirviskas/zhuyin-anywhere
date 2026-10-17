@@ -2,6 +2,18 @@
 
 Newest first. Versions are the userscript's `@version`; each entry lists the commits that make it up.
 
+## 0.7.0
+
+### `<hash>` · 2026-10-17 · TASK-002 feat(popup): Add settings panel, target languages and hide-meaning mode
+
+- ⚙ on the word card and the translation popup opens a settings panel with every option, applied right away. One settings table drives both the panel and the Violentmonkey menu (all entries kept, plus "Settings…").
+- "Translate to": every language Google Translate offers (132, English and Lithuanian first; any other code from the menu), and an optional "Second language" shown under the first. Non-English languages come from Google in the card (word and characters) and the word list too, one batched request each, cached; English keeps CC-CEDICT. With two languages every line is tagged (`LT`, `EN`).
+- "Hide meaning": popups open as usual but translations are blurred while the reveal key (Shift, Alt or Ctrl) isn't held; pressing and holding the blurred text also reveals it.
+- R reads the open word card, else the translation popup, aloud; only while one is open and not while typing. The letter is a setting, with or without Alt.
+- The popup is built with DOM calls instead of `innerHTML`, so it also opens on pages that enforce Trusted Types.
+- In-memory translation cache is keyed by language; `local` opus-mt only for English.
+- README images: new `languages.png`, `hide-meaning.png`, `settings.png` (dark mode); `hover.png`, `select.png`, `dark.png` retaken with the ⚙. `build.js` replays canned answers per language and line, and dark examples share a `.night` block.
+
 ## 0.6.0
 
 ### `<hash>` · 2026-10-17 · feat(popup): Add word-list speakers, CC-CEDICT word split, cache, dark theme and touch

@@ -25,8 +25,14 @@ const IMG_OUT = path.join(ROOT, 'docs/img');
 const SHOTS = path.join(HERE, 'shots');
 const SCALE = 2;   // device pixel ratio of every render: 2 keeps text sharp on hi-dpi screens and GitHub
 
-// Selection popup text. Keys must match the selected text exactly (zhuyin stripped).
-const TRANSLATIONS = { '我們先去銀行換錢': 'We went to the bank first to change money.' };
+// Canned Google answers per target language. Keys must match the text sent exactly (zhuyin stripped);
+// word cards and word lists send one word per line, and every line is looked up on its own.
+// The Lithuanian is Google's real output for these requests (2026-10-17).
+const TRANSLATIONS = {
+  en: { '我們先去銀行換錢': 'We went to the bank first to change money.' },
+  lt: { '我們先去銀行換錢': 'Pirmiausia eikime į banką išsikeisti pinigų', '我們': 'mus', '先': 'pirma', '去': 'eik', '銀行': 'bankas',
+    '換錢': 'išsikeisti pinigus', '夜市': 'naktinis turgus', '夜': 'nakties', '市': 'miestas' },
+};
 
 for (const f of ['vendor/zhuyin-dict.js', 'vendor/cedict.gz', 'fonts.css']) {
   if (!fs.existsSync(path.join(HERE, f))) { console.error(`missing ${f}: run  sh fetch-deps.sh  first`); process.exit(1); }
@@ -46,10 +52,12 @@ async function injectUserscript(page, store = {}) {
       GM_getResourceURL: (name) => (name === 'cedict' ? cedictUrl : null),
       GM_getValue: (k, v) => (k in st ? st[k] : v),
       GM_setValue: (k, v) => { st[k] = v; },
-      GM_registerMenuCommand: (n) => n, GM_unregisterMenuCommand() {}, GM_setClipboard() {},
+      // menu commands are kept by name, so a shot can open "Settings…" the way a user would
+      GM_registerMenuCommand: (n, f) => { (window.__menu ??= {})[n] = f; return n; }, GM_unregisterMenuCommand() {}, GM_setClipboard() {},
       GM_xmlhttpRequest: (o) => {   // Google gtx response shape: [[[translation, source]]]
-        const q = decodeURIComponent((o.url.split('&q=')[1] || ''));
-        setTimeout(() => o.onload({ status: 200, responseText: JSON.stringify([[[tr[q] || '(no canned translation)', q]]]) }), 30);
+        const q = decodeURIComponent((o.url.split('&q=')[1] || '')), tl = /[?&]tl=([^&]+)/.exec(o.url)?.[1];
+        const out = q.split('\n').map((l) => tr[tl]?.[l] || '(no canned translation)').join('\n');
+        setTimeout(() => o.onload({ status: 200, responseText: JSON.stringify([[[out, q]]]) }), 30);
       },
     });
   }, [DICT, CEDICT_B64, store, TRANSLATIONS]);
@@ -73,6 +81,17 @@ const charCenter = (p, word, idx) => p.evaluate(([word, idx]) => {
   return { x: r.left + r.width * 0.3, y: r.top + r.height / 2 };
 }, [word, idx]);
 
+// Selects 我們先去銀行換錢 and releases the mouse, so the translation popup opens.
+async function selectSentence(p) {
+  await p.evaluate(() => {
+    const ws = [...document.querySelectorAll('#p1 zy-w')];
+    const a = ws.find((w) => w.textContent.startsWith('我')), z = ws.find((w) => w.textContent.startsWith('換'));
+    const r = document.createRange(); r.setStartBefore(a); r.setEndAfter(z);
+    getSelection().removeAllRanges(); getSelection().addRange(r);
+  });
+  await p.mouse.move(300, 150); await p.mouse.up(); await p.waitForTimeout(1600);
+}
+
 async function shootDemo(browser) {
   fs.mkdirSync(SHOTS, { recursive: true });
   const out = (n) => path.join(SHOTS, n);
@@ -91,16 +110,36 @@ async function shootDemo(browser) {
 
     // selection → translation popup with word list
     p = await demoPage(browser, { h: 520, colorScheme });
-    await p.evaluate(() => {
-      const ws = [...document.querySelectorAll('#p1 zy-w')];
-      const a = ws.find((w) => w.textContent.startsWith('我')), z = ws.find((w) => w.textContent.startsWith('換'));
-      const r = document.createRange(); r.setStartBefore(a); r.setEndAfter(z);
-      getSelection().removeAllRanges(); getSelection().addRange(r);
-    });
-    await p.mouse.move(300, 150); await p.mouse.up(); await p.waitForTimeout(1600);
+    await selectSentence(p);
     await p.mouse.move(630, 510);   // park the mouse off the text
     await p.screenshot({ path: out(`select${sfx}.png`) }); await p.close();
   }
+
+  // new features since 0.7.0, all in dark mode: two target languages (Lithuanian, then English)
+  const twoLangs = { targetLang: 'lt', targetLang2: 'en' };
+  p = await demoPage(browser, { h: 600, store: twoLangs, colorScheme: 'dark' });
+  const n = await charCenter(p, '夜市', 0);
+  await p.mouse.move(5, 5); await p.mouse.move(n.x, n.y); await p.waitForTimeout(1600);
+  await p.screenshot({ path: out('hover-lang.png') }); await p.close();
+  p = await demoPage(browser, { h: 520, store: twoLangs, colorScheme: 'dark' });
+  await selectSentence(p);
+  await p.mouse.move(630, 510);
+  await p.screenshot({ path: out('select-lang.png') }); await p.close();
+
+  // hide meaning: the same popup blurred, then with the reveal key (Shift) held
+  for (const [name, held] of [['hidden', false], ['revealed', true]]) {
+    p = await demoPage(browser, { h: 520, store: { ...twoLangs, hideMeaning: true }, colorScheme: 'dark' });
+    await selectSentence(p);
+    await p.mouse.move(630, 510);
+    if (held) { await p.keyboard.down('Shift'); await p.waitForTimeout(300); }
+    await p.screenshot({ path: out(name + '.png') }); await p.close();
+  }
+
+  // settings panel, opened from the menu (the ⚙ on a popup opens the same panel)
+  p = await demoPage(browser, { h: 900, store: { targetLang: 'lt' }, colorScheme: 'dark' });
+  await p.evaluate(() => window.__menu['Settings…']());
+  await p.waitForTimeout(300);
+  await p.screenshot({ path: out('settings.png') }); await p.close();
 
   // newsletter pop-up: full zhuyin vs compact mode
   p = await demoPage(browser, { modal: true, store: { compactChrome: false } }); await p.screenshot({ path: out('modal-full.png') }); await p.close();
@@ -180,8 +219,11 @@ const README_IMAGES = {
   'hover':        () => document.querySelectorAll('section')[2].querySelectorAll('.feature')[0].querySelector('.frame'),
   'select':       () => document.querySelectorAll('section')[2].querySelectorAll('.feature')[1].querySelector('.frame'),
   'dark':         () => document.getElementById('dark'),
+  'languages':    () => document.getElementById('lang'),
+  'hide-meaning': () => document.getElementById('hide'),
+  'settings':     () => document.getElementById('settings'),
   'context':      () => document.querySelector('.context'),
-  'compact':      () => document.querySelectorAll('section')[5].querySelector('.pair'),
+  'compact':      () => document.getElementById('compact').querySelector('.pair'),
 };
 
 async function readmeImages(p) {
@@ -193,7 +235,7 @@ async function readmeImages(p) {
       const el = (0, eval)(`(${src})`)(), r = el.getBoundingClientRect();
       let pad = 36;
       const extra = name === 'hero' ? 10 : 0;   // the hero box has an 8px offset shadow
-      if (name === 'dark') pad = 0;   // #dark draws its own dark margin
+      if (el.classList.contains('night')) pad = 0;   // night blocks draw their own dark margin
       return { x: Math.max(0, r.left - pad), y: r.top + scrollY - pad, width: Math.min(1500, r.width + 2 * pad + extra), height: r.height + 2 * pad + extra };
     }, [pick.toString(), name]);
     await p.screenshot({ path: path.join(IMG_OUT, name + '.png'), clip, fullPage: true });
