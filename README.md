@@ -5,8 +5,9 @@
 A Violentmonkey userscript for reading Taiwanese websites while learning Mandarin.
 
 - Writes **zhuyin** (Taiwan's pronunciation symbols) beside every Traditional Chinese character on any page.
-- Shows the **meaning** of a word when you point at it, in English, Lithuanian or another language.
+- Shows the **meaning** of a word when you point at it, in English or any of about 130 other languages.
 - **Translates** whatever text you select, into one or two languages.
+- **Reads aloud** any word or selected text in a Taiwan Mandarin voice: click the speaker or press <kbd>R</kbd>.
 
 Works in Firefox and Chrome on news sites, blogs, YouTube and anything else written in Traditional Chinese.
 
@@ -63,11 +64,11 @@ While the translation is open, the word card appears beside it rather than on to
 
 <p align="center"><img src="docs/img/select.png" alt="Selected sentence 我們先去銀行換錢 with a popup showing pinyin, the English translation and a word list" width="560"></p>
 
-<sub>The screenshots come from a demo page. The English sentence in this one was supplied offline, but the word list underneath is real dictionary output. The Lithuanian in the images below is Google's real answer, recorded once and replayed.</sub>
+<sub>The screenshots come from a demo page. The English sentence in this one was supplied offline, but the word list underneath is real dictionary output. The second language in the images below (Lithuanian, as an example) is Google's real answer, recorded once and replayed.</sub>
 
-### Lithuanian and other languages
+### Your own language
 
-Translations go to English by default. Under **Translate to** in the settings you can pick Lithuanian or another language, and under **Second language** a second one, which shows under the first everywhere, each line tagged (`LT`, `EN`):
+Translations go to English by default. Under **Translate to** in the settings you can pick any other language, such as Spanish, Japanese or German, and under **Second language** a second one, which shows under the first everywhere, each line tagged with its language code (`ES`, `EN`):
 - the translation of the selected text,
 - the word-by-word list under it,
 - the word card, for the whole word and for each character.
@@ -167,7 +168,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 | Setting | Options |
 |---|---|
 | This site | `auto` (on when the page looks like Traditional Chinese) → `on` → `off`. Remembered per site. |
-| Translate to | English (default), Lithuanian, German, French… In the menu, any Google language code can be typed. |
+| Translate to | English (default) or any language Google Translate offers: Spanish, Japanese, German… In the menu, any Google language code can be typed. |
 | Second language | `none` (default) or a second language, shown under the first |
 | Hide meaning | Off, or on: translations are blurred until the reveal key is held |
 | Reveal key | <kbd>Shift</kbd> (default), <kbd>Alt</kbd> or <kbd>Ctrl</kbd> |
@@ -202,7 +203,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 - **Neutral tones:** McBopomofo stores dictionary tones, so some words show a full tone where textbooks write the neutral ˙. For example, 覺得 shows ㄉㄜˊ instead of ˙ㄉㄜ. The hover card corrects the character breakdown using CC-CEDICT, but the zhuyin on the page stays as the dictionary has it.
 - **Word list senses:** the selection word list shows each word's first CC-CEDICT sense, which isn't always the one the sentence uses. 搭 comes out as "to put up", not "to take (the MRT)". The hover card lists more senses.
 - **React/Vue sites:** replacing text nodes can crash some single-page apps on their next re-render. If a site breaks, set it to `off` in the settings or the menu.
-- **Other languages:** Google translates Chinese into most languages through English, so the result can be a step further from the original than the English is. Single function words come out badly (的 → Lithuanian "iš", "from"). English word meanings come from CC-CEDICT and are the most reliable.
+- **Other languages:** Google translates Chinese into most languages through English, so the result can be a step further from the original than the English is. Single function words come out badly: 的 on its own can come back as a word for "from". English word meanings come from CC-CEDICT and are the most reliable.
 - **Google translation:** the `google` translator uses an unofficial endpoint and can occasionally be rate-limited. The popup then shows an error instead of the translation.
 - **Read aloud:** uses Google Translate's unofficial voice endpoint, with a Taiwan Mandarin speaker. When it can't be reached, the browser's own voice reads instead; on Linux that is often espeak-ng, which sounds robotic. The button's tooltip says when that happened and why. Google chooses the reading itself, so a single character can come out differently from the zhuyin on the page.
 - **Cache is per site:** IndexedDB belongs to the website's origin, so each site keeps its own cache, up to the set size each. Userscript storage is shared across sites, but Violentmonkey loads all of it into every page, which would slow every page load. Clearing a site's data in the browser also clears its cache.
