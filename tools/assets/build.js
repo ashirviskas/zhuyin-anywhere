@@ -136,7 +136,7 @@ async function shootDemo(browser) {
   }
 
   // settings panel, opened from the menu (the ⚙ on a popup opens the same panel)
-  p = await demoPage(browser, { h: 900, store: { targetLang: 'lt' }, colorScheme: 'dark' });
+  p = await demoPage(browser, { h: 1150, store: { targetLang: 'lt' }, colorScheme: 'dark' });
   await p.evaluate(() => window.__menu['Settings…']());
   await p.waitForTimeout(300);
   await p.screenshot({ path: out('settings.png') }); await p.close();
