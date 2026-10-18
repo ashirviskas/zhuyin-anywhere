@@ -10,7 +10,7 @@ Requirements: Node 18+, Python 3, curl.
 cd tools/assets
 npm install                  # Playwright
 npx playwright install chromium
-sh fetch-deps.sh             # dictionaries + fonts, about 25 MB, not committed
+sh fetch-deps.sh             # dictionaries + fonts, about 30 MB, not committed
 node build.js                # → shots/*.png and ../../docs/img/*.png
 node build.js --poster       # also → out/poster.png (the whole poster as one tall image)
 ```
@@ -25,7 +25,7 @@ With the same Chromium, fonts and dictionaries, the output is byte-identical to 
 | `poster.html` | The layout every image is cut from: practice-grid background, browser frames, and `class="live"` blocks that the userscript annotates itself. |
 | `build.js` | Renders everything; the steps are described below. |
 | `fetch-deps.sh` | Downloads `vendor/zhuyin-dict.js` and `vendor/cedict.gz`, the same files as the script's `@resource` lines. It then runs `fetch-fonts.py`. |
-| `fetch-fonts.py` | Downloads LXGW WenKai TC and Literata from Google Fonts into `fonts/` and writes `fonts.css`, so rendering needs no network. |
+| `fetch-fonts.py` | Downloads LXGW WenKai TC, Noto Sans TC and Literata from Google Fonts into `fonts/` and writes `fonts.css`, so rendering needs no network. |
 
 `vendor/`, `fonts/`, `fonts.css`, `shots/` and `out/` are generated and git-ignored.
 
@@ -79,7 +79,7 @@ The look is a Taiwanese primary-school workbook. Those textbooks print zhuyin in
 Fonts:
 - **LXGW WenKai TC:** a 楷書-style face close to textbook lettering, used for the large Chinese.
 - **Literata:** a book serif for all Latin text.
-- **Noto Sans CJK TC:** draws the zhuyin itself, since that's what the script requests.
+- **Noto Sans TC:** draws the zhuyin and the demo site, since it is the first font the script requests. It is bundled rather than taken from the system: a CJK fallback without vertical metrics (WenQuanYi in the Playwright Docker image) stacks a zhuyin column into one glyph.
 
 ## Changing things
 

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Download the two webfonts used by poster.html and site.html, and write fonts.css pointing at local files.
+"""Download the three webfonts used by poster.html, site.html and the zhuyin itself, and write fonts.css pointing at local files.
 
-Google Fonts serves CJK fonts as ~230 unicode-range subsets (woff2); all of them are fetched (~10 MB),
+Google Fonts serves CJK fonts as ~350 unicode-range woff2 subsets; all of them are fetched (~15 MB),
 so the renders work offline and don't depend on the network at screenshot time.
 """
 import concurrent.futures, os, re, urllib.request
 
 UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
 CSS_URL = ('https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700'
+           '&family=Noto+Sans+TC:wght@400;700'
            '&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;0,7..72,700;1,7..72,400&display=block')
 
 def get(url):

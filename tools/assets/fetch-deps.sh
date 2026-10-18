@@ -2,7 +2,7 @@
 # Downloads everything the renderer needs that isn't in git:
 #   vendor/zhuyin-dict.js  zhuyin dictionary (the same file the userscript's @resource points at)
 #   vendor/cedict.gz       CC-CEDICT (the same file as the cedict @resource)
-#   fonts/ + fonts.css     LXGW WenKai TC + Literata from Google Fonts, rewritten to local paths
+#   fonts/ + fonts.css     LXGW WenKai TC + Noto Sans TC + Literata from Google Fonts, rewritten to local paths
 set -e
 cd "$(dirname "$0")"
 mkdir -p vendor

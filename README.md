@@ -218,7 +218,7 @@ MIT, see [`LICENSE`](LICENSE).
 
 - **Zhuyin readings:** [McBopomofo](https://github.com/openvanilla/McBopomofo) dictionary data (MIT), via yt-zhuyin. The script downloads it at install; this repo doesn't include it.
 - **Word meanings:** [CC-CEDICT](https://cc-cedict.org/) by MDBG ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)). Also downloaded at install, not included here.
-- **Fonts in the README images:** LXGW WenKai TC and Literata, both under the SIL Open Font License.
+- **Fonts in the README images:** LXGW WenKai TC, Noto Sans TC and Literata, all under the SIL Open Font License.
 
 ## Images in this README
 

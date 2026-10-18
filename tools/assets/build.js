@@ -186,7 +186,7 @@ function drawCallouts() {
   const col = rel(host.querySelector('zy-col').getBoundingClientRect(), host);
   const s1 = rng(zs.firstChild, 0), s2 = rng(zs.firstChild, 1), t = rng(tn.firstChild, 0), c = rng(ch, 0);
   const LX = 760;   // x of the label column
-  const sym = (z) => `<span style="font-style:normal;font-family:'Noto Sans CJK TC';font-size:34px;color:#1F2D3A;display:inline-block;width:46px;vertical-align:-4px">${z}</span>`;
+  const sym = (z) => `<span style="font-style:normal;font-family:'Noto Sans TC';font-size:34px;color:#1F2D3A;display:inline-block;width:46px;vertical-align:-4px">${z}</span>`;
   label(host, LX, s1.cy - 24, sym('ㄧ') + 'sounds like “ee” in <i>see</i>', 500);
   arrow(svg, LX - 16, s1.cy, col.r + 18, s1.cy, 10);
   const ny = s2.cy + 26;   // a little below ㄣ's centre, to pass under the tone glyph
