@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         注音 anywhere (Traditional Mandarin → zhuyin + select-to-translate)
 // @namespace    local.zhuyin-anywhere
-// @version      0.7.0
+// @version      0.8.0
 // @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its meaning (CC-CEDICT, or Google in other languages); select text to translate it into English, Lithuanian or another language. Speaker buttons read words and selections aloud in Taiwan Mandarin. ⚙ on the popups opens the settings.
 // @match        *://*/*
 // @match        file:///*
@@ -38,7 +38,10 @@
  *     (銀行 ㄏㄤˊ, not ㄒㄧㄥˊ). MutationObserver feeds new content into the same queue.
  *  4. Rendering: yt-zhuyin's textbook layout — vertical column right of the character, ˙ drawn as a
  *     dot above, ˊˇˋ in their own slot. Optional 'top' layout. Zhuyin is user-select:none and is
- *     also stripped from the selection text, so copy/translate see only the Chinese.
+ *     also stripped from the selection text, so copy/translate see only the Chinese. "Zhuyin on page" can
+ *     hide it everywhere ('off') or show it only over the hovered word ('hover', an overlay that moves nothing);
+ *     the text stays annotated either way, so the card still works. In the popups the zhuyin goes after the
+ *     word, or beside each character ("Zhuyin in popups"), drawn with the same zy-col/zy-zs/zy-tn parts.
  *  5. Hover gloss: CC-CEDICT (CC BY-SA 4.0, MDBG) as a gzipped @resource — fetched once by Violentmonkey,
  *     stored base64 in extension storage, read lazily via GM_getResourceURL and gunzipped with
  *     DecompressionStream. Not GM_setValue: Violentmonkey ships every stored value into every page on
@@ -56,7 +59,7 @@
  *  9. Touch: a tap opens a word's card; a long-press selection translates once it settles.
  * 10. Settings: one table (SETTINGS) drives both the Violentmonkey menu and the ⚙ panel in the popups.
  *
- * Hotkeys: Alt+Z show/hide zhuyin · Alt (held) + hover shows gloss in 'alt' mode · Alt+T translate selection (when autoTranslate is off) ·
+ * Hotkeys: Alt+Z cycles zhuyin on page (on → hover → off) · Alt (held) + hover shows gloss in 'alt' mode · Alt+T translate selection (when autoTranslate is off) ·
  *          R (configurable, Alt optional) read the open card or popup aloud · Shift (configurable, held) shows hidden meanings · Esc closes popups and stops reading aloud
  */
 
@@ -65,6 +68,9 @@
 
   // ---------------------------------------------------------------- config
   const CFG = {
+    zhuyin: GM_getValue('zhuyin', 'on'),             // on the page: 'on' | 'hover' (over the hovered word only) | 'off'; the card always shows it
+    popupZhuyin: GM_getValue('popupZhuyin', 'beside'),// card, selected text, word list: 'beside' (by each character) | 'after' (after the word, one line)
+    hoverZhuyin: GM_getValue('hoverZhuyin', 'label'),// 'hover' mode: 'label' (one label above the word, moves nothing) | 'inline' (drawn in the line)
     layout: GM_getValue('layout', 'side'),           // 'side' (textbook column) | 'top' (horizontal, above)
     scale: 0.5,                                       // zhuyin size relative to the annotated text
     wordGap: 0.12,                                    // em of space between dictionary words (0 = none)
@@ -237,10 +243,21 @@
       ['html.zyh-top zy-col', 'flex-direction:row'],
       ['html.zyh-top zy-dot', 'margin:0 .15em 0 0'],
       ['html.zyh-top zy-tn', 'font-size:1.3em;line-height:.7;width:auto;margin:0 0 0 .05em'],
-      ['html.zyh-hidden zy-z', 'display:none'],
+      ['html.zyh-off zy-z, html.zyh-hover zy-z', 'display:none'],
+      ['html.zyh-off zy-w, html.zyh-hover zy-w', 'margin-right:0'],
       ['zy-run[data-c] zy-z', 'display:none'],
       ['zy-run[data-c] zy-w', 'margin-right:0'],
-      ['html.zyh-hidden zy-w', 'margin-right:0'],
+      // Hover: one label with the word's zhuyin floats above it, out of the flow so no text moves (shown in the
+      // line, the word would widen, slip from under the pointer and flicker). One label, not one per character:
+      // a syllable is wider than its character, so per-character labels overlap. Not for compact text.
+      ['html.zyh-hover zy-w', 'position:relative'],
+      ['html.zyh-hover:not(.zyh-inline) zy-run:not([data-c]) zy-w:hover::before', `content:attr(data-zl);position:absolute;bottom:100%;left:50%;
+        transform:translateX(-50%);z-index:1;margin:0 0 .15em 0;padding:.15em .4em;border-radius:.3em;
+        font-size:max(.6em,11px);line-height:1.2;font-weight:400;font-style:normal;letter-spacing:.05em;white-space:nowrap;
+        background:Canvas;color:CanvasText;box-shadow:0 1px 3px rgba(0,0,0,.3);pointer-events:none;-webkit-user-select:none;user-select:none;
+        font-family:"Noto Sans TC","Noto Sans CJK TC","PingFang TC","Microsoft JhengHei","Source Han Sans TW",sans-serif`],
+      // Hover in the line: drawn as in 'on'. The word widens, so at a line end it can wrap away from the pointer.
+      ['html.zyh-hover.zyh-inline zy-run:not([data-c]) zy-w:hover zy-z', 'display:inline-flex'],
       ['zy-c[data-on]', 'background:rgba(66,133,244,.16);box-shadow:0 .1em 0 rgba(66,133,244,.16),0 -.1em 0 rgba(66,133,244,.16)'],   // word of the open card; per character, as the card may show part of a zy-w
     ];
     const imp = (decls) => decls.split(';').map(d => d.trim()).filter(Boolean)
@@ -250,7 +267,9 @@
     const root = document.documentElement.classList;
     root.toggle('zyh-top', CFG.layout === 'top');
     root.toggle('zyh-poly', CFG.showPolyphones);
+    zhuyinClass(CFG.zhuyin);
   }
+  const zhuyinClass = (v) => { const root = document.documentElement.classList; root.toggle('zyh-off', v === 'off'); root.toggle('zyh-hover', v === 'hover'); root.toggle('zyh-inline', CFG.hoverZhuyin === 'inline'); };
 
   // ---------------------------------------------------------------- rendering
   function zhuyinParts(z) {
@@ -272,6 +291,7 @@
       if (w.zy[0] === null) { frag.appendChild(document.createTextNode(w.chars.join(''))); continue; }
       const word = document.createElement('zy-w');
       word.dataset.zy = w.zy.map(z => z || '?').join(' ');
+      word.dataset.zl = w.zy.map(z => (z ? normZhuyin(z) : '?')).join(' ');   // the hover label
       if (w.alts && w.alts.length > 1) word.dataset.alts = w.alts.slice(1).join(' ');
       w.chars.forEach((ch, i) => {
         const z = w.zy[i];
@@ -446,7 +466,6 @@
   function start() {
     if (active) return;
     active = true;
-    document.documentElement.classList.remove('zyh-hidden');
     injectCss();
     enqueue(document.body);
   }
@@ -758,6 +777,15 @@
         font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#eee;background:rgba(22,22,24,.96);
         box-shadow:0 6px 28px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px)}
       .src{font-size:13px;color:#aaa;margin-bottom:6px;max-height:4.4em;overflow:hidden;font-family:"Noto Sans TC","PingFang TC",sans-serif}
+      .src.zb{font-size:20px;line-height:1.5;color:inherit;max-height:9em;overflow:auto}
+      .zc{display:inline-flex;align-items:center}
+      .zz{display:inline-flex;align-items:flex-end;font-size:.45em;line-height:1;margin:0 .1em 0 .12em;opacity:.75;-webkit-user-select:none;user-select:none}
+      .src .zz,.wl .zz{font-size:.5em}
+      zy-col{display:inline-flex;flex-direction:column;align-items:center}
+      zy-zs{writing-mode:vertical-lr;text-orientation:upright}
+      zy-dot{display:block;width:.32em;height:.32em;border-radius:50%;background:currentColor;margin-bottom:.2em}
+      zy-tn{font-size:1.5em;line-height:.6;width:.5em;margin-left:-.02em}
+      .wl .h .zc{font-size:20px}
       .py{font-size:12px;color:#8ab4f8;margin-bottom:6px;max-height:3em;overflow:hidden}
       .py:empty{display:none}
       .en{white-space:pre-wrap;word-break:break-word}
@@ -839,7 +867,7 @@
     pop = { hostEl, box: $('.tr'), gl: $('.gl'), set: $('.set'), src: $('.src'), py: $('.py'), tx: $('.tx'), via: $('.via'), words: $('.words'), say: $('.say'), cfg: $('.cfg') };
     $('.x').onclick = hidePopup;
     $('.cp').onclick = () => GM_setClipboard([...pop.tx.querySelectorAll('.t')].map(t => t.textContent).join('\n'));
-    pop.say.onclick = () => speak(pop.src.textContent, pop.say);
+    pop.say.onclick = () => speak(pop.text, pop.say);
     pop.cfg.onclick = () => openSettings(pop.box.getBoundingClientRect());
     for (const b of [pop.box, pop.gl, pop.set]) b.addEventListener('mousedown', (e) => e.stopPropagation());
     // Holding the pointer on a blurred meaning reveals it too: touch has no reveal key.
@@ -850,6 +878,26 @@
     return pop;
   }
   function hidePopup() { if (pop) { pop.box.style.display = 'none'; if (playing && pop.box.contains(playing.btn)) stopSpeaking(); } }
+  // Popup Chinese with each character's zhuyin beside it ('beside'), drawn like on the page. zys: one per char; null or '?' = none.
+  function zyChars(chars, zys) {
+    const f = document.createDocumentFragment();
+    chars.forEach((ch, i) => {
+      const z = zys?.[i];
+      if (!z || z === '?') { f.append(ch); return; }
+      const c = el('span', 'zc', ch), zz = el('span', 'zz'); zz.append(...zhuyinParts(normZhuyin(z))); c.append(zz); f.append(c);
+    });
+    return f;
+  }
+  function zyLine(text) {
+    const f = document.createDocumentFragment(), D = loadDict(); let last = 0;
+    for (const m of text.matchAll(HAN_RUN)) {
+      f.append(text.slice(last, m.index));
+      for (const w of segment([...m[0]], D)) f.append(zyChars(w.chars, w.zy));
+      last = m.index + m[0].length;
+    }
+    f.append(text.slice(last));
+    return f;
+  }
   const sayBtn = (text) => { const b = pop.say.cloneNode(true); b.className = 'say'; b.title = 'Read aloud'; b.onclick = () => speak(text, b); return b; };
   const cfgBtn = (onclick) => { const b = pop.cfg.cloneNode(true); b.onclick = onclick; return b; };
   const shown = (b) => pop?.[b].style.display === 'block';
@@ -948,7 +996,9 @@
       const zys = w.zy[0] === null ? null : w.zy.slice(a, b);
       const e = lookup(word, zys)[0], d = el('span', 'd m');
       for (const l of ls) { const c = el('span', null, l === 'en' ? (e && shortDef(e)) || '—' : '…'); d.append(c); goog.get(l)?.push(c); }
-      grid.append(sayBtn(word), el('span', 'h', word), el('span', 'p', !CFG.pinyin ? (zys ? zys.map(normZhuyin).join(' ') : '')
+      const beside = CFG.popupZhuyin === 'beside' && !CFG.pinyin && zys, h = el('span', 'h');
+      h.append(beside ? zyChars(w.chars.slice(a, b), zys) : word);
+      grid.append(sayBtn(word), h, el('span', 'p', beside ? '' : !CFG.pinyin ? (zys ? zys.map(normZhuyin).join(' ') : '')
         : zys ? zys.map(zhuyinToPinyin).join('') : (e ? numToMarked(e.num).replace(/ /g, '') : '')), d);
     }
     if (!grid.childElementCount) return;
@@ -975,7 +1025,10 @@
   async function showTranslation(text, rect) {
     selRect = rect;
     const p = popup(), id = ++reqId;
-    p.src.textContent = text;
+    p.text = text;
+    const beside = CFG.popupZhuyin === 'beside' && text.length <= 120;   // longer: plain, it would fill the screen
+    p.src.classList.toggle('zb', beside);
+    p.src.replaceChildren(beside ? zyLine(text) : text);
     try { p.py.textContent = CFG.pinyin && text.length <= 300 ? pinyinOf(text) : ''; } catch { p.py.textContent = ''; }
     const lines = langs().map((l) => { const t = el('span', 't', '…'), d = el('div', 'en m'); d.append(langTag(l), t); return [l, d, t]; });
     p.tx.replaceChildren(...lines.map(x => x[1]));
@@ -1056,10 +1109,12 @@
     const rs = cells.map(c => c.getBoundingClientRect());
     const rect = { left: Math.min(...rs.map(r => r.left)), top: Math.min(...rs.map(r => r.top)), bottom: Math.max(...rs.map(r => r.bottom)) };
     // Speaker first: the card opens under the word's left edge, so it's the shortest way from the word.
-    const hw = el('div', 'hw'); hw.append(sayBtn(word), el('span', 'han', word));
+    const beside = known && CFG.popupZhuyin === 'beside', han = el('span', 'han');
+    han.append(beside ? zyChars(chars, zys) : word);
+    const hw = el('div', 'hw'); hw.append(sayBtn(word), han);
     // Larger than on the page, where it's half the text size and hard to read; also the only place it
-    // shows for compact (UI) text or when hidden with Alt+Z.
-    if (known)
+    // shows for compact (UI) text or with "Zhuyin on page" off.
+    if (known && !beside)
       hw.append(el('span', 'zy', zys.map(normZhuyin).join(' ')));
     p.gl.replaceChildren(hw, cfgBtn(() => { const r = p.gl.getBoundingClientRect(); hideGloss(); openSettings(r); }));
     const senses = (list) => {
@@ -1194,7 +1249,8 @@
     if (k === 'KeyZ') {
       e.preventDefault();
       if (!active) { start(); return; }
-      document.documentElement.classList.toggle('zyh-hidden');
+      const r = SETTINGS.find(r => r.k === 'zhuyin'), i = r.opts.findIndex(o => o[0] === CFG.zhuyin);
+      setCfg(r, r.opts[(i + 1) % r.opts.length][0]);
     } else if (k === 'KeyT') { e.preventDefault(); translateSelection(true); }
   }, true);
   // In a text field, or in the settings panel (its select jumps to options by letter). Events from inside
@@ -1216,7 +1272,7 @@
   // unless it has its own get/set; `apply` makes the change take effect on the open page.
   // Controls: `opts` (few values: buttons, cycled in the menu), `list` (a select, a prompt in the menu), `num`.
   const onOff = [[true, 'on'], [false, 'off']];
-  const retranslate = () => { if (shown('box')) showTranslation(pop.src.textContent, selRect); };
+  const retranslate = () => { if (shown('box')) showTranslation(pop.text, selRect); };
   const SETTINGS = [
     { label: host === 'local files' ? 'Local files' : 'This site', get: siteMode, set: (v) => GM_setValue(siteKey, v),
       opts: [['auto', 'auto'], ['on', 'on'], ['off', 'off']], hint: 'auto: only pages that look like Traditional Chinese',
@@ -1235,6 +1291,14 @@
     { label: 'Word gloss', k: 'gloss', opts: [['hover', 'hover'], ['alt', 'Alt'], ['off', 'off']], apply: hideGloss },
     { label: 'Translate on select', k: 'autoTranslate', opts: [[true, 'on'], [false, 'Alt+T']] },
     { label: 'Pinyin in translation', k: 'pinyin', opts: onOff, apply: retranslate },
+    { label: 'Zhuyin on page', k: 'zhuyin', opts: [['on', 'on'], ['hover', 'hover'], ['off', 'off']],
+      hint: 'hover: only over the word under the pointer. The word card always shows it. Alt+Z switches',
+      // Drawn zhuyin again: restart, so the overflow guard measures it (while hidden, nothing overflowed).
+      apply: (v) => { zhuyinClass(v); if (v === 'on' && active) { stop(); start(); } } },
+    { label: 'Zhuyin in popups', k: 'popupZhuyin', opts: [['beside', 'by each character'], ['after', 'after the word']],
+      apply: () => { hideGloss(); retranslate(); }, hint: 'Word card, selected text and word list' },
+    { label: 'Hover zhuyin', k: 'hoverZhuyin', opts: [['label', 'label above'], ['inline', 'in the line']], apply: () => zhuyinClass(CFG.zhuyin),
+      hint: 'With Zhuyin on page: hover. In the line can push the word to the next line' },
     { label: 'Layout', k: 'layout', opts: [['side', 'side'], ['top', 'top']],
       apply: (v) => document.documentElement.classList.toggle('zyh-top', v === 'top') },
     { label: 'Highlight polyphones', k: 'showPolyphones', gm: 'poly', opts: onOff,

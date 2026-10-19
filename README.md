@@ -37,6 +37,13 @@ Mandarin has four tones plus a light, neutral one. The same sound said with a di
 
 When you turn it on, every Traditional Chinese character on the page gets its zhuyin, including headlines, menus, article text and comments. The page itself isn't changed otherwise. When you copy text, you get clean Chinese without the symbols mixed in.
 
+Once you can read more on your own, set **Zhuyin on page** in the settings (or press <kbd>Alt</kbd>+<kbd>Z</kbd> to switch):
+- `on`: zhuyin beside every character, as above.
+- `hover`: plain text. Point at a word and its zhuyin appears in a small label above it, without moving the text. With **Hover zhuyin** set to `in the line`, it's drawn beside the characters instead, like `on`. The text then gets wider, so a word at the end of a line can jump to the next one.
+- `off`: plain text everywhere.
+
+In all three, the word card and the translation box still work and show the zhuyin.
+
 <p align="center"><img src="docs/img/before-after.png" alt="The same blog page before and after: plain Chinese on the left, Chinese with zhuyin beside each character on the right" width="820"></p>
 
 ### Point at a word to see what it means
@@ -51,6 +58,8 @@ The script groups characters into words with a typing (IME) dictionary, which al
 On a phone or tablet (Firefox for Android with Violentmonkey), tap a word to open its card.
 
 In this example, "pearls + milk + tea" turns out to be bubble tea.
+
+The card, the selected text in the translation box and its word list show the zhuyin beside each character, textbook style. Set **Zhuyin in popups** to `after the word` to show it after the word instead.
 
 <p align="center"><img src="docs/img/hover.png" alt="Hover card for 珍珠奶茶: pearl milk tea, bubble milk tea; 珍 precious thing, 珠 bead (highlighted), 奶 breast, 茶 tea" width="560"></p>
 
@@ -157,7 +166,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 
 | Key | Action |
 |---|---|
-| <kbd>Alt</kbd>+<kbd>Z</kbd> | Show or hide zhuyin. On a page the script skipped, this turns it on. |
+| <kbd>Alt</kbd>+<kbd>Z</kbd> | Switch **Zhuyin on page**: `on` → `hover` → `off`. Saved. On a page the script skipped, this turns the script on. |
 | <kbd>Alt</kbd>+<kbd>T</kbd> | Translate the selection (when automatic translation is off) |
 | <kbd>R</kbd> | Read the open word card, or else the translation box, aloud; again to stop. Only while one is open and you aren't typing; otherwise the key goes to the page. The letter is a setting, and so is whether it needs <kbd>Alt</kbd> (<kbd>Alt</kbd>+<kbd>R</kbd>). |
 | <kbd>Shift</kbd> (held) | Show the meanings while **Hide meaning** is on. The key is a setting: <kbd>Shift</kbd>, <kbd>Alt</kbd> or <kbd>Ctrl</kbd>. |
@@ -173,6 +182,9 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 | Hide meaning | Off, or on: translations are blurred until the reveal key is held |
 | Reveal key | <kbd>Shift</kbd> (default), <kbd>Alt</kbd> or <kbd>Ctrl</kbd> |
 | Read aloud key | A letter, <kbd>R</kbd> by default, or <kbd>Alt</kbd> + a letter |
+| Zhuyin on page | `on` (default), `hover` (only on the word under the pointer) or `off`. The word card always shows it. |
+| Zhuyin in popups | `by each character` (default) or `after the word`, in the word card, the selected text and the word list |
+| Hover zhuyin | With `hover`: `label above` (default, moves nothing) or `in the line` |
 | Layout | `side`: textbook style, symbols beside the character. `top`: horizontal, above the character. |
 | Highlight polyphones | Tints characters whose reading is a best guess between several options |
 | Buttons & popups | `compact` or full zhuyin everywhere |
@@ -223,4 +235,4 @@ MIT, see [`LICENSE`](LICENSE).
 
 ## Images in this README
 
-The images are rendered from [`tools/assets/`](tools/assets/), which runs the real userscript in headless Chromium. Run `node build.js` there to regenerate them after changing the script.
+The images are rendered from [`tools/assets/`](tools/assets/), which runs the real userscript in headless Chromium. Run `sh tools/run.sh images` to regenerate them after changing the script, and `sh tools/run.sh test` for the browser tests; see [`tools/README.md`](tools/README.md).

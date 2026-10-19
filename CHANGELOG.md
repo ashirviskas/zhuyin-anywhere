@@ -2,6 +2,14 @@
 
 Newest first. Versions are the userscript's `@version`; each entry lists the commits that make it up.
 
+## 0.8.0
+
+### `<hash>` · 2026-10-18 · TASK-003 feat(zhuyin): Add zhuyin on page on/hover/off and zhuyin beside characters in popups
+
+- "Zhuyin on page": `on`, `hover` or `off`, saved, for all sites. The text stays annotated, so the word card and the translation box work as before. Alt+Z switches between the three instead of a show/hide that was forgotten on reload.
+- `hover`: the word under the pointer gets one label with its zhuyin above it, outside the text flow so nothing moves. "Hover zhuyin: in the line" draws it beside the characters instead.
+- "Zhuyin in popups": `by each character` (textbook style, the default) or `after the word` in the word card, the selected text (up to 120 characters) and the word list.
+
 ## 0.7.0
 
 ### `<hash>` · 2026-10-17 · TASK-002 feat(popup): Add settings panel, target languages and hide-meaning mode
