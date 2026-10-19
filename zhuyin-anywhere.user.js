@@ -69,7 +69,7 @@
   // ---------------------------------------------------------------- config
   const CFG = {
     zhuyin: GM_getValue('zhuyin', 'on'),             // on the page: 'on' | 'hover' (over the hovered word only) | 'off'; the card always shows it
-    popupZhuyin: GM_getValue('popupZhuyin', 'after'),// card, selected text, word list: 'after' (after the word, one line) | 'beside' (by each character)
+    popupZhuyin: GM_getValue('popupZhuyin', 'beside'),// card, selected text, word list: 'beside' (by each character) | 'after' (after the word, one line)
     hoverZhuyin: GM_getValue('hoverZhuyin', 'label'),// 'hover' mode: 'label' (one label above the word, moves nothing) | 'inline' (drawn in the line)
     layout: GM_getValue('layout', 'side'),           // 'side' (textbook column) | 'top' (horizontal, above)
     scale: 0.5,                                       // zhuyin size relative to the annotated text
@@ -1295,7 +1295,7 @@
       hint: 'hover: only over the word under the pointer. The word card always shows it. Alt+Z switches',
       // Drawn zhuyin again: restart, so the overflow guard measures it (while hidden, nothing overflowed).
       apply: (v) => { zhuyinClass(v); if (v === 'on' && active) { stop(); start(); } } },
-    { label: 'Zhuyin in popups', k: 'popupZhuyin', opts: [['after', 'after the word'], ['beside', 'by each character']],
+    { label: 'Zhuyin in popups', k: 'popupZhuyin', opts: [['beside', 'by each character'], ['after', 'after the word']],
       apply: () => { hideGloss(); retranslate(); }, hint: 'Word card, selected text and word list' },
     { label: 'Hover zhuyin', k: 'hoverZhuyin', opts: [['label', 'label above'], ['inline', 'in the line']], apply: () => zhuyinClass(CFG.zhuyin),
       hint: 'With Zhuyin on page: hover. In the line can push the word to the next line' },

@@ -4,6 +4,8 @@ Everything in `docs/img/` is rendered from this folder. Each image shows the rea
 
 ## Rebuild
 
+The short way, with Node or only podman/docker: `sh tools/run.sh images` from the repository root (see [`../README.md`](../README.md)). By hand:
+
 Requirements: Node 18+, Python 3, curl.
 
 ```sh

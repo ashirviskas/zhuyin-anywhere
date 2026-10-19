@@ -59,7 +59,7 @@ On a phone or tablet (Firefox for Android with Violentmonkey), tap a word to ope
 
 In this example, "pearls + milk + tea" turns out to be bubble tea.
 
-With **Zhuyin in popups** set to `by each character`, the card, the selected text in the translation box and its word list show the zhuyin beside each character, textbook style, instead of after the word.
+The card, the selected text in the translation box and its word list show the zhuyin beside each character, textbook style. Set **Zhuyin in popups** to `after the word` to show it after the word instead.
 
 <p align="center"><img src="docs/img/hover.png" alt="Hover card for 珍珠奶茶: pearl milk tea, bubble milk tea; 珍 precious thing, 珠 bead (highlighted), 奶 breast, 茶 tea" width="560"></p>
 
@@ -183,7 +183,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 | Reveal key | <kbd>Shift</kbd> (default), <kbd>Alt</kbd> or <kbd>Ctrl</kbd> |
 | Read aloud key | A letter, <kbd>R</kbd> by default, or <kbd>Alt</kbd> + a letter |
 | Zhuyin on page | `on` (default), `hover` (only on the word under the pointer) or `off`. The word card always shows it. |
-| Zhuyin in popups | `after the word` (default) or `by each character`, in the word card, the selected text and the word list |
+| Zhuyin in popups | `by each character` (default) or `after the word`, in the word card, the selected text and the word list |
 | Hover zhuyin | With `hover`: `label above` (default, moves nothing) or `in the line` |
 | Layout | `side`: textbook style, symbols beside the character. `top`: horizontal, above the character. |
 | Highlight polyphones | Tints characters whose reading is a best guess between several options |
@@ -235,4 +235,4 @@ MIT, see [`LICENSE`](LICENSE).
 
 ## Images in this README
 
-The images are rendered from [`tools/assets/`](tools/assets/), which runs the real userscript in headless Chromium. Run `node build.js` there to regenerate them after changing the script.
+The images are rendered from [`tools/assets/`](tools/assets/), which runs the real userscript in headless Chromium. Run `sh tools/run.sh images` to regenerate them after changing the script, and `sh tools/run.sh test` for the browser tests; see [`tools/README.md`](tools/README.md).

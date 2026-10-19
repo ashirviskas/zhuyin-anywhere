@@ -11,7 +11,7 @@ Status: **<Not started | Planning, nothing implemented | Subtask N.M in progress
 - Project rules: never `git stash`, never run `git commit` (print a Suggested commit block instead), temporary files only in `./tmp/`, KISS, one file (`zhuyin-anywhere.user.js`) and no build step, reuse the popup's existing CSS classes and light/dark colours, no backwards compatibility.
 - `README.md`: what the user sees; update it when keys, menu entries or features change.
 - The pipeline comment at the top of `zhuyin-anywhere.user.js`: how the script is put together.
-- `tools/assets/README.md`: how the README images in `docs/img/` are rendered; rerun `node build.js` there when the UI changes.
+- `tools/README.md`: how to run the tests (`sh tools/run.sh test`) and rebuild the README images in `docs/img/` (`sh tools/run.sh images`) when the UI changes.
 - <Other task docs or READMEs this task builds on, with one line on why.>
 
 ## Overview
@@ -135,12 +135,12 @@ graph TD
 
 ## Instructions
 
-- Run `node --check zhuyin-anywhere.user.js`.
+- Run `sh tools/run.sh test` (syntax check + browser tests). Add or extend a `tools/tests/*.test.js` for new behaviour.
 - Bump `@version` in the metadata block when behaviour changes, so Violentmonkey picks up the update.
 - Add an entry to `CHANGELOG.md` (commit hash, date, changes) under the version it ships in, `Unreleased` if none. Fill in the hash once the user has committed.
 - Test in Violentmonkey on Firefox and, when the change touches browser APIs, on Chrome too. A local test page in `./tmp/` opened as `file:///` works: the script matches local files.
 - if UI/UX changed, make sure to show specific changes and give paths to screenshots. Keep them in `./tmp/`.
-- if UI/UX changed, regenerate the README images: `cd tools/assets && node build.js` (setup in `tools/assets/README.md`), and check that popups still fit their crops.
+- if UI/UX changed, regenerate the README images: `sh tools/run.sh images` (setup in `tools/README.md`), and check that popups still fit their crops. Keep only the images whose content changed; `git checkout` the ones that differ only by anti-aliasing.
 
 ### Gotchas (learned the hard way)
 
