@@ -2,11 +2,34 @@
 
 Newest first. Versions are the userscript's `@version`; each entry lists the commits that make it up.
 
+## 0.9.3
+
+**Older parts.** Many common characters have changed so much that their parts can't be seen any more. Their cards used to break them into meaningless shapes (用 as 冂 + 二 + 丨). Now they say so, and show the parts the character was built from: 年 was 禾 (meaning) + 人 (sound), 夜 was 亦 (sound) + 夕 (meaning). Click one to open it.
+
+### `<hash>` · 2026-10-25 · TASK-007 fix(learn): Show older parts instead of shapes when a character's parts changed
+
+- Build: a character whose parts have no meaning or sound role gets no parts (unless Make Me a Hanzi's hint names them all, like 我); 80 形聲/會意 characters such as 用, 平, 年, 金, 青 lose their shape-only split.
+- Build: a new `from` column with Wiktionary's parts when the glyph no longer shows them (850 characters: 年 禾 + 人, 星 晶 + 生, 重 人 + 東); they get rows of their own. Single strokes are named as strokes (丨 "vertical stroke", not "number one").
+- Card: an "Older parts" line, each part clickable, with its role; the header says "no longer visible in today's form" when a 形聲/會意 character has no meaning or sound part to show.
+
+## 0.9.2
+
+**Your language from the start.** On a fresh install, translations go to your browser's language, with English under it.
+
+**Open a word from the word list.** Select a sentence: every word in the list under the translation has a › at the end. Click it and the word's card takes the popup's place, with all its senses; click a character there to go further in. The path at the top leads back to the sentence.
+
+### `<hash>` · 2026-10-25 · TASK-006 feat(popup): Open a word's card from the translation's word list
+
+- Newcomers get their browser's language: "Translate to" defaults to it, with English as "Second language" (English only for English and Chinese browsers). Settings already chosen stay.
+- "Translate explanations" is on by default: with a target language other than English, a character's explanations come in it too.
+- README settings table: every setting names its default.
+- A › at the end of every word-list row replaces the translation popup with the word's card, under the selection. The crumb starts with the sentence (`我們先去銀… › 我們 › 我`) and brings the translation back. Like the popup, the card stays until a click elsewhere or Esc; hovering or scrolling the page leaves it alone.
+
 ## 0.9.1
 
 **Explanations in your language.** With **Learn › Translate explanations** on and a target language other than English, a character's card shows the hint and the origin in that language too, under the English, as well as each part's meaning.
 
-### `<hash>` · 2026-10-25 · TASK-005 fix(learn): Translate hints and origins, split pictographs their hint describes
+### `a3540d8` · 2026-10-25 · TASK-005 fix(learn): Translate hints and origins, split pictographs their hint describes
 
 - "Translate parts" is now "Translate explanations": the hint and the origin are translated too (from English, one line per target language under the English).
 - Pictographs whose Make Me a Hanzi hint names every part show those parts as shapes: 我 = 扌 + 戈, 果 = 田 + 木, 東 = 木 + 日 (72 characters). Pictographs whose hint names nothing still show none (日, 木).

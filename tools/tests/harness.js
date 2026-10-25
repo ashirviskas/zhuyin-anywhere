@@ -13,9 +13,9 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
 
 // The "what's new" note counts as seen, and the update check as done today, unless a test passes seenVersion or
 // updateCheck itself. The update check reads `__remote` from the store as the version on main (default: this one).
-async function page(browser, store = {}, colorScheme = 'light') {
+async function page(browser, store = {}, colorScheme = 'light', locale = 'en-US') {
   store = { seenVersion: VERSION, updateCheck: Date.now(), ...store };
-  const p = await browser.newPage({ viewport: { width: 640, height: 600 }, deviceScaleFactor: 2, colorScheme });
+  const p = await browser.newPage({ viewport: { width: 640, height: 600 }, deviceScaleFactor: 2, colorScheme, locale });
   p.on('pageerror', (e) => { console.log('pageerror', e.message); fails++; });
   await p.goto('file://' + A + '/site.html');
   await p.evaluate(([dict, gz, comps, st, version]) => {

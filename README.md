@@ -43,7 +43,7 @@ Open any Taiwanese page: a news site, a blog, a YouTube video's comments. Every 
 - **Wean yourself off zhuyin.** Once the common characters feel familiar, switch **Zhuyin on page** to `hover` (<kbd>Alt</kbd>+<kbd>Z</kbd>). The text is plain, and a character's zhuyin appears only while you point at it. When you rarely need that, switch to `off`.
 - **Test yourself.** Turn on **Hide meaning**. Each word or sentence opens with its meaning blurred, so you guess first, press <kbd>R</kbd> to hear it, and hold <kbd>Shift</kbd> to check.
 - **Shadow the voice.** Select a sentence, play it, and repeat it out loud along with the voice. The zhuyin shows each tone, so you can hear where yours differs.
-- **Learn in your own language.** Set **Translate to** to your language and **Second language** to English. Every meaning then shows in both, which helps when a translation in one of them is vague.
+- **Learn in your own language.** If your browser isn't in English, this is already set up: **Translate to** is your language and **Second language** is English. Every meaning then shows in both, which helps when a translation in one of them is vague.
 - **See what a character is made of.** Point at a single character and its card shows its parts: 媽 is 女 *woman*, which gives the meaning, plus 馬 *horse*, which gives the sound (ㄇㄚˇ → ㄇㄚ). Click a part to open its own card and its parts, down to the basic pictures. Most characters have a meaning part and a sound part, so once you know the parts you can often guess both the meaning and the reading of a character you've never seen.
 - **Spot the common characters.** Under **Learn** in the settings, set **Most common** to tint the top 100 characters, or any number up to 1000. Each one always has the same colour on every page, so you start recognising them by colour before you know them by heart. Raise the number as you learn. The top 100 are listed [at the end of Usage](#the-100-most-common-characters).
 - **Mark what you want to remember.** Click the highlighter on a word card to add the character to **My characters**. It's then tinted and underlined wherever it appears, even with the common-character tint off.
@@ -83,7 +83,7 @@ The card, the selected text in the translation box and its word list show the zh
 
 ### Select text to translate it
 
-Highlight any text to get its translation (English unless you choose another language), with a speaker button that reads the text aloud. Selections of up to 24 characters also get a word-by-word breakdown with each word's zhuyin and its own speaker button. Pinyin (the Latin-letter spelling of the same sounds) can be switched on in the settings. On touch screens, long-press to select; the translation opens once the selection stops changing.
+Highlight any text to get its translation (English unless you choose another language), with a speaker button that reads the text aloud. Selections of up to 24 characters also get a word-by-word breakdown with each word's zhuyin and its own speaker button. The › at the end of a row opens that word's card in the popup's place, with all its senses; from there, click a character to see what it's made of. The path at the top (`我們先去銀… › 我們`) leads back to the sentence. Pinyin (the Latin-letter spelling of the same sounds) can be switched on in the settings. On touch screens, long-press to select; the translation opens once the selection stops changing.
 
 Translations and voice clips are cached, so text you've already looked up on a site loads instantly and doesn't ask Google again.
 
@@ -95,7 +95,7 @@ While the translation is open, pointing at words on the page doesn't open word c
 
 ### Your own language
 
-Translations go to English by default. Under **Translate to** in the settings you can pick any other language, such as Spanish, Japanese or German, and under **Second language** a second one, which shows under the first everywhere, each line tagged with its language code (`ES`, `EN`):
+Translations go to your browser's language by default, with English as the second language; with an English or Chinese browser, to English only. Under **Translate to** in the settings you can pick any other language, such as Spanish, Japanese or German, and under **Second language** a second one, which shows under the first everywhere, each line tagged with its language code (`ES`, `EN`):
 - the translation of the selected text,
 - the word-by-word list under it,
 - the word card, for the whole word and for each character.
@@ -123,11 +123,12 @@ On a touch screen, press and hold the blurred text instead. The reveal key can b
 Point at a single character, and its card shows what it's made of:
 - how it was formed: 形聲 a meaning part plus a sound part (most characters), 會意 an idea from its parts, or 象形 a picture,
 - each part with its zhuyin and meaning, tagged `meaning` or `sound`. A sound part shows its own reading and the character's (乞 ㄑㄧˇ → 吃 ㄔ),
-- where the character comes from, in a line or two from Wiktionary, with a link to the full entry.
+- where the character comes from, in a line or two from Wiktionary, with a link to the full entry,
+- when the character has changed so much that its parts can't be seen any more, its older parts instead (年 was 禾 meaning + 人 sound).
 
 Click a part to open its card. The path at the top (`吃 › 乞`) and ‹ take you back. In the card for a word of two or three characters, click a character to open its card (`銀行 › 銀`). A part's card also lists the characters it gives its sound to.
 
-**Parts on word cards** turns this off. With a target language other than English, **Translate explanations** adds it after each English part meaning, and under the hint and the origin.
+**Parts on word cards** turns this off. With a target language other than English, **Translate explanations** (on by default) adds it after each English part meaning, and under the hint and the origin.
 
 <p align="center"><img src="docs/img/parts.png" alt="Dark word card for 吃: meaning + sound, 口 mouth (meaning) and 乞 to beg (sound ㄑㄧˇ → ㄔ), its origin from Wiktionary; next to it the card for 銀, opened from the word 銀行, with 釒 metal (meaning) and 艮 (sound)" width="820"></p>
 
@@ -227,32 +228,32 @@ None of them is loaded on pages that have no Chinese text. The meaning dictionar
 
 | Tab | Setting | Options |
 |---|---|---|
-| Page | This site | `auto` (on when the page looks like Traditional Chinese) → `on` → `off`. Remembered per site. |
+| Page | This site | `auto` (default: on when the page looks like Traditional Chinese) → `on` → `off`. Remembered per site. |
 | Page | Zhuyin on page | `on` (default), `hover` (only on the word under the pointer) or `off`. The word card always shows it. |
 | Page | Hover zhuyin | With `hover`: `label above` (default, moves nothing) or `in the line` |
-| Page | Layout | `side`: textbook style, symbols beside the character. `top`: horizontal, above the character. |
-| Page | Highlight polyphones | Tints characters whose reading is a best guess between several options |
-| Page | Buttons & popups | `compact` or full zhuyin everywhere |
-| Popups | Word gloss | `hover`, `alt` (only while holding <kbd>Alt</kbd>), or `off` |
+| Page | Layout | `side` (default): textbook style, symbols beside the character. `top`: horizontal, above the character. |
+| Page | Highlight polyphones | Off (default), or tint characters whose reading is a best guess between several options |
+| Page | Buttons & popups | `compact` (default): no zhuyin in buttons and fixed boxes, a card on hover. Or full zhuyin everywhere. |
+| Popups | Word gloss | `hover` (default), `alt` (only while holding <kbd>Alt</kbd>), or `off` |
 | Popups | Zhuyin in popups | `by each character` (default) or `after the word`, in the word card, the selected text and the word list |
-| Popups | Translate on select | On, or off so that only <kbd>Alt</kbd>+<kbd>T</kbd> translates |
-| Popups | Pinyin in translation | Off: the word list shows zhuyin. On: a pinyin line under the selected text, and pinyin in the word list. |
+| Popups | Translate on select | On (default), or off so that only <kbd>Alt</kbd>+<kbd>T</kbd> translates |
+| Popups | Pinyin in translation | Off (default): the word list shows zhuyin. On: a pinyin line under the selected text, and pinyin in the word list. |
 | Popups | Read aloud key | A letter, <kbd>R</kbd> by default, or <kbd>Alt</kbd> + a letter |
-| Popups | Popup theme | `auto` (follows the system) → `dark` → `light` |
-| Translate | Translate to | English (default) or any language Google Translate offers: Spanish, Japanese, German… In the menu, any Google language code can be typed. |
-| Translate | Second language | `none` (default) or a second language, shown under the first |
-| Translate | Translator | `google` (Google's free web endpoint, no key) or `local` (yt-zhuyin's `asr_server.py`, opus-mt, offline). `local` translates to English only; other languages always use Google. |
+| Popups | Popup theme | `auto` (default, follows the system) → `dark` → `light` |
+| Translate | Translate to | Your browser's language (default; English for English and Chinese browsers) or any language Google Translate offers: Spanish, Japanese, German… In the menu, any Google language code can be typed. |
+| Translate | Second language | English when the first isn't (default), else `none`; or any second language, shown under the first |
+| Translate | Translator | `google` (default; Google's free web endpoint, no key) or `local` (yt-zhuyin's `asr_server.py`, opus-mt, offline). `local` translates to English only; other languages always use Google. |
 | Translate | Cache | Size of the translation and voice cache per site in MB, 100 by default. 0 turns it off. |
 | Learn | Parts on word cards | `on` (default): a character's parts and origin on its card; click a part, or a character of a word, to open it |
-| Learn | Translate explanations | `off` (default), or part meanings, the hint and the origin also in the target language(s) |
-| Learn | Look | Soft box, Box + zhuyin, Highlighter, Coloured text, Underline: style, covers, palette and strength in one click. Hover to preview. |
+| Learn | Translate explanations | `on` (default): with a target language other than English, part meanings, the hint and the origin in it too. `off`: English only |
+| Learn | Look | Soft box (default), Box + zhuyin, Highlighter, Coloured text, Underline: style, covers, palette and strength in one click. Hover to preview. |
 | Learn | Most common | Tint the N most common characters: off (default), up to 1000 |
 | Learn | My characters | `on` (default): your characters tinted and underlined. Add, remove, export, import. |
 | Learn | Style | `box` (default), `highlighter`, `text` (coloured characters) or `underline` |
 | Learn | Covers | `character` (default) or `character + zhuyin` |
 | Learn | Palette | Pastel (default), Vivid, Earth, Ocean, Forest, Sunset, Berry, Mono, Colour-blind safe |
 | Learn | Strength | How strong the tint is, 35 % by default |
-| Learn | Hide meaning | Off, or on: translations are blurred until the reveal key is held |
+| Learn | Hide meaning | Off (default), or on: translations are blurred until the reveal key is held |
 | Learn | Reveal key | <kbd>Shift</kbd> (default), <kbd>Alt</kbd> or <kbd>Ctrl</kbd> |
 
 Violentmonkey's menu has the Page, Popups and Translate settings, Hide meaning and Reveal key; the rest of Learn is only in the panel.
@@ -294,7 +295,7 @@ How often each character turns up in everyday Taiwanese text, by the script's di
 ## Known limitations
 
 - **Neutral tones:** McBopomofo stores dictionary tones, so some words show a full tone where textbooks write the neutral ˙. For example, 覺得 shows ㄉㄜˊ instead of ˙ㄉㄜ. The hover card corrects the character breakdown using CC-CEDICT, but the zhuyin on the page stays as the dictionary has it.
-- **Word list senses:** the selection word list shows each word's first CC-CEDICT sense, which isn't always the one the sentence uses. 搭 comes out as "to put up", not "to take (the MRT)". The hover card lists more senses.
+- **Word list senses:** the selection word list shows each word's first CC-CEDICT sense, which isn't always the one the sentence uses. 搭 comes out as "to put up", not "to take (the MRT)". Its card (› or hover) lists more senses.
 - **React/Vue sites:** replacing text nodes can crash some single-page apps on their next re-render. If a site breaks, set it to `off` in the settings or the menu.
 - **Other languages:** Google translates Chinese into most languages through English, so the result can be a step further from the original than the English is. Single function words come out badly: 的 on its own can come back as a word for "from". English word meanings come from CC-CEDICT and are the most reliable.
 - **Google translation:** the `google` translator uses an unofficial endpoint and can occasionally be rate-limited. The popup then shows an error instead of the translation.

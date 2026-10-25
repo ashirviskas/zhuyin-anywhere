@@ -32,3 +32,4 @@ UTF-8, tab-separated, gzipped. Lines starting with `#` are the header. One line 
 | hint | `woman` | Make Me a Hanzi's hint: a memory aid, sometimes folk etymology |
 | origin | `Phono-semantic compound (形聲): semantic 女 + phonetic 馬.` | From Wiktionary, at most about 400 characters; ` ¶ ` separates paragraphs |
 | src | `ACCA` | Which source gave parts, type, roles, gloss: `A` Make Me a Hanzi, `B` CJKVI-IDS, `C`/`c` Wiktionary template/prose, `E` CC-CEDICT, `R` built-in table, `-` none |
+| from | (empty for 媽; `禾s 人p` for 年) | Wiktionary's parts, same notation as `parts`, when the parts above don't hold them because the glyph changed. The card shows them as "Older parts" |
