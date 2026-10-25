@@ -17,7 +17,7 @@ const OUT = outDir(__filename);
   await sh(p, `$('.gl .cfg').click()`); await p.waitForTimeout(200);
   ok(await sh(p, `$('.set').style.display === 'block' && $('.gl').style.display === 'none'`), 'card ⚙ opens panel, hides card');
   ok(await sh(p, `$$('.set .tabs button').map(b => b.textContent).join() === 'Page,Popups,Translate,Learn' && $('.set .tabs .on').textContent === 'Page'`), 'panel has 4 tabs, Page first');
-  ok(await sh(p, `$$('.set .row').length === 6`), 'Page tab: 6 rows');
+  ok(await sh(p, `$$('.set .row').length === 7`), 'Page tab: 7 rows');
   await p.screenshot({ path: OUT + '/2-settings.png' });
   // choose Lithuanian via the select, dark theme via button
   await tab(p, 'Translate');
@@ -113,6 +113,28 @@ const OUT = outDir(__filename);
   await hover(p, '珍珠奶茶');
   ok(await sh(p, `$('.gl .tl .lg').textContent === 'LT' && $('.gl .ent .lg').textContent === 'EN'`), 'card tags LT and EN');
   await p.screenshot({ path: OUT + '/9-card-lt-en-dark.png' });
+  await p.close();
+
+  // 8. Popup size: text, icons and boxes scale; the card stays on screen; the slider changes the open panel at once
+  const sizes = (p) => sh(p, `(() => { const g = $('.gl'), r = g.getBoundingClientRect(); return { font: parseFloat(getComputedStyle(g).fontSize),
+    icon: $('.gl svg')?.getBoundingClientRect().width, in: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight }; })()`);
+  p = await page(browser);
+  await hover(p, '珍珠奶茶');
+  const normal = await sizes(p);
+  await p.close();
+  p = await page(browser, { popupScale: 150 });
+  await hover(p, '珍珠奶茶');
+  const big = await sizes(p);
+  ok(Math.abs(big.font - normal.font * 1.5) < 0.1 && Math.abs(big.icon - normal.icon * 1.5) < 0.5, `popup size 150 %: text ${normal.font} → ${big.font} px, icons ${normal.icon} → ${big.icon} px`);
+  ok(big.in, 'popup size 150 %: card still on screen');
+  await p.screenshot({ path: OUT + '/10-card-150.png' });
+  await p.evaluate(() => __menu.find(m => m[0] === 'Settings…')[1]()); await p.waitForTimeout(200);
+  await tab(p, 'Popups');
+  await sh(p, `(() => { const s = $$('.set .row').find(r => r.firstChild.textContent === 'Popup size').querySelector('input'); s.value = 80; s.dispatchEvent(new Event('change')); })()`);
+  await p.waitForTimeout(100);
+  ok(await p.evaluate(() => __st.popupScale === 80) && await sh(p, `parseFloat(getComputedStyle($('.set')).fontSize) === 13 * 0.8`), 'slider: 80 % stored, panel text smaller at once');
+  ok(await sh(p, `(() => { const r = $('.set').getBoundingClientRect(); return r.right <= innerWidth && r.bottom <= innerHeight; })()`), 'panel on screen');
+  await p.screenshot({ path: OUT + '/11-settings-80.png' });
   await p.close();
 
   await done(browser);

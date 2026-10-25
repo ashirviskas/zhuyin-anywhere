@@ -159,7 +159,7 @@ Once a day, on a page the script runs on, it also checks whether a newer version
 
 ### Dark popups
 
-The card, the translation box and the settings follow your system's light or dark setting. To always use one of them, set **Popup theme** in the settings.
+The card, the translation box and the settings follow your system's light or dark setting. To always use one of them, set **Popup theme** in the settings. **Popup size** makes them bigger or smaller.
 
 <p align="center"><img src="docs/img/dark.png" alt="The hover card for 珍珠奶茶 and the translation popup for 我們先去銀行換錢, both with dark backgrounds" width="820"></p>
 
@@ -234,12 +234,14 @@ None of them is loaded on pages that have no Chinese text. The meaning dictionar
 | Page | Layout | `side` (default): textbook style, symbols beside the character. `top`: horizontal, above the character. |
 | Page | Highlight polyphones | Off (default), or tint characters whose reading is a best guess between several options |
 | Page | Buttons & popups | `compact` (default): no zhuyin in buttons and fixed boxes, a card on hover. Or full zhuyin everywhere. |
+| Page | Zhuyin is added | `near the screen` (default): a few screens ahead as you scroll, and taken off far behind, so long pages stay fast. Or `to the whole page` at once. |
 | Popups | Word gloss | `hover` (default), `alt` (only while holding <kbd>Alt</kbd>), or `off` |
 | Popups | Zhuyin in popups | `by each character` (default) or `after the word`, in the word card, the selected text and the word list |
 | Popups | Translate on select | On (default), or off so that only <kbd>Alt</kbd>+<kbd>T</kbd> translates |
 | Popups | Pinyin in translation | Off (default): the word list shows zhuyin. On: a pinyin line under the selected text, and pinyin in the word list. |
 | Popups | Read aloud key | A letter, <kbd>R</kbd> by default, or <kbd>Alt</kbd> + a letter |
 | Popups | Popup theme | `auto` (default, follows the system) → `dark` → `light` |
+| Popups | Popup size | 70 % to 200 %, 100 % by default: text, buttons and boxes of the card, the translation and the settings |
 | Translate | Translate to | Your browser's language (default; English for English and Chinese browsers) or any language Google Translate offers: Spanish, Japanese, German… In the menu, any Google language code can be typed. |
 | Translate | Second language | English when the first isn't (default), else `none`; or any second language, shown under the first |
 | Translate | Translator | `google` (default; Google's free web endpoint, no key) or `local` (yt-zhuyin's `asr_server.py`, opus-mt, offline). `local` translates to English only; other languages always use Google. |
@@ -256,7 +258,7 @@ None of them is loaded on pages that have no Chinese text. The meaning dictionar
 | Learn | Hide meaning | Off (default), or on: translations are blurred until the reveal key is held |
 | Learn | Reveal key | <kbd>Shift</kbd> (default), <kbd>Alt</kbd> or <kbd>Ctrl</kbd> |
 
-Violentmonkey's menu has the Page, Popups and Translate settings, Hide meaning and Reveal key; the rest of Learn is only in the panel.
+Violentmonkey's menu has the Page, Popups and Translate settings (but Popup size), Hide meaning and Reveal key; the rest of Learn is only in the panel.
 
 ### The 100 most common characters
 
@@ -284,6 +286,7 @@ How often each character turns up in everyday Taiwanese text, by the script's di
   - Adds a `<wbr>` after every word, so Firefox can wrap lines between annotated words.
 - **Performance:**
   - Text nodes are processed in idle-time slices.
+  - Only text near the screen is annotated: within two screens of what you see, found with an `IntersectionObserver`. Text six screens away goes back to plain text, and the browser's scroll anchoring keeps what's on screen still. On *Le Petit Prince* (21,000 characters) that's about 600 annotated characters instead of all of them; a tint preview went from 30 s of frozen page to under a second.
   - A `MutationObserver` picks up content added later (SPAs, infinite scroll, YouTube navigation).
   - Layout is measured in batches: once before and once after each slice. That's what drives the overflow guard behind compact mode.
 - **Meanings:** CC-CEDICT, sorted so the entry whose reading matches the zhuyin on the page comes first. That includes CC-CEDICT's "Taiwan pr." notes.
@@ -301,6 +304,7 @@ How often each character turns up in everyday Taiwanese text, by the script's di
 - **Google translation:** the `google` translator uses an unofficial endpoint and can occasionally be rate-limited. The popup then shows an error instead of the translation.
 - **Read aloud:** uses Google Translate's unofficial voice endpoint, with a Taiwan Mandarin speaker. When it can't be reached, the browser's own voice reads instead; on Linux that is often espeak-ng, which sounds robotic. The button's tooltip says when that happened and why. Google chooses the reading itself, so a single character can come out differently from the zhuyin on the page.
 - **Cache is per site:** IndexedDB belongs to the website's origin, so each site keeps its own cache, up to the set size each. Userscript storage is shared across sites, but Violentmonkey loads all of it into every page, which would slow every page load. Clearing a site's data in the browser also clears its cache.
+- **Long pages:** with **Zhuyin is added** at `near the screen`, printing a page shows zhuyin only around where you were reading. Set it to `to the whole page` before printing.
 - **Simplified Chinese:** pages in Simplified Chinese are skipped in `auto` mode, because the dictionary covers Traditional characters.
 - **Character parts:** cover the 4,808 common characters of Taiwan's Ministry of Education list and their parts. A few mix a historical analysis with today's shape (保), and Make Me a Hanzi's hints are memory aids, sometimes folk etymology. Wiktionary's origin line is the more reliable one.
 

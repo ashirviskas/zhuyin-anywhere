@@ -46,7 +46,7 @@ const fileUrl = (f) => 'file://' + path.join(HERE, f);
 // `store` pre-seeds GM_getValue (per-site mode, compact toggle, …).
 const VERSION = /@version\s+(\S+)/.exec(fs.readFileSync(SCRIPT, 'utf8'))[1];
 async function injectUserscript(page, store = {}) {
-  store = { seenVersion: VERSION, updateCheck: Date.now(), ...store };   // no "what's new" or update note in the images
+  store = { seenVersion: VERSION, updateCheck: Date.now(), lazy: false, ...store };   // no "what's new" or update note in the images; the tall poster annotated whole
   await page.evaluate(([dict, gz, comps, st, tr, version]) => {
     // the popup's closed shadow root, opened so a shot can click a row of the card
     const att = Element.prototype.attachShadow;
