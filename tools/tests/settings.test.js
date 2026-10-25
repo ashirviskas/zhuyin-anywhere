@@ -1,5 +1,5 @@
 // Settings panel and menu, target languages, hide meaning, read-aloud key (TASK-002).
-const { chromium, ok, page, sh, hover, select, outDir, done } = require('./harness');
+const { chromium, ok, page, sh, tab, hover, select, outDir, done } = require('./harness');
 const OUT = outDir(__filename);
 
 (async () => {
@@ -16,15 +16,21 @@ const OUT = outDir(__filename);
   // gear on the card → settings panel, card hidden
   await sh(p, `$('.gl .cfg').click()`); await p.waitForTimeout(200);
   ok(await sh(p, `$('.set').style.display === 'block' && $('.gl').style.display === 'none'`), 'card ⚙ opens panel, hides card');
-  ok(await sh(p, `$$('.set .row').length === 18`), 'panel has 18 rows');
+  ok(await sh(p, `$$('.set .tabs button').map(b => b.textContent).join() === 'Page,Popups,Translate,Learn' && $('.set .tabs .on').textContent === 'Page'`), 'panel has 4 tabs, Page first');
+  ok(await sh(p, `$$('.set .row').length === 6`), 'Page tab: 6 rows');
   await p.screenshot({ path: OUT + '/2-settings.png' });
   // choose Lithuanian via the select, dark theme via button
+  await tab(p, 'Translate');
+  ok(await sh(p, `$$('.set .row').map(r => r.firstChild.textContent).join() === 'Translate to,Second language,Translator,Cache, MB per site'`), 'Translate tab rows');
   await sh(p, `(() => { const s = $$('.set select')[0]; s.value = 'lt'; s.dispatchEvent(new Event('change')); })()`);
   ok(await p.evaluate(() => __st.targetLang === 'lt'), 'select stores targetLang=lt');
+  ok(await sh(p, `$('.set .tabs .on').textContent === 'Translate'`), 'panel stays on its tab after a change');
+  await tab(p, 'Popups');
   await sh(p, `$$('.set .row').find(r => r.textContent.startsWith('Popup theme')).querySelectorAll('button')[1].click()`);
   ok(await p.evaluate(() => __st.theme === 'dark'), 'theme button stores dark');
   ok(await sh(p, `__sh.host.dataset.theme === 'dark' && $$('.set .row').find(r => r.textContent.startsWith('Popup theme')).querySelector('.on').textContent === 'dark'`), 'theme applied, panel re-rendered');
-  ok(await p.evaluate(() => __menu.some(m => m[0] === 'Translate to: Lithuanian (change…)') && __menu.some(m => m[0] === 'Settings…')), 'menu rebuilt with new values');
+  ok(await p.evaluate(() => __menu.some(m => m[0] === 'Translate to: Lithuanian (change…)') && __menu[0][0] === 'Settings…'), 'menu rebuilt with new values, Settings… first');
+  ok(await p.evaluate(() => !__menu.some(m => /^(Look|Most common|Style|Palette|Parts on word cards)/.test(m[0]))), 'menu has no Learn-only options');
   await p.screenshot({ path: OUT + '/3-settings-dark.png' });
   await p.keyboard.press('Escape');
   ok(await sh(p, `$('.set').style.display === 'none'`), 'Esc closes panel');
@@ -55,6 +61,7 @@ const OUT = outDir(__filename);
   // the popup's own ⚙: panel beside the popup, popup stays
   await sh(p, `$('.tr .cfg').click()`); await p.waitForTimeout(200);
   ok(await sh(p, `$('.set').style.display === 'block' && $('.tr').style.display === 'block'`), 'popup ⚙ opens panel, popup stays');
+  await tab(p, 'Translate');
   await sh(p, `(() => { const s = $$('.set select')[1]; s.value = ''; s.dispatchEvent(new Event('change')); })()`);
   await p.waitForTimeout(300);
   ok(await sh(p, `$$('.tx .en').length === 1 && $('.tx .en').textContent === 'lt:我們先去銀行換錢'`), 'second language → none re-translates open popup');

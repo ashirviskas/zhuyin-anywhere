@@ -2,6 +2,8 @@
 
 <img src="docs/img/hero.png" alt="注音 written large, with its zhuyin symbols beside each character" width="360" align="right">
 
+**注音** is said **ㄓㄨˋ ㄧㄣ** (zhùyīn): *zhù* falling, *yīn* high and flat.
+
 A Violentmonkey userscript for reading Taiwanese websites while learning Mandarin.
 
 - Writes **zhuyin** (Taiwan's pronunciation symbols) beside every Traditional Chinese character on any page.
@@ -30,6 +32,22 @@ Mandarin has four tones plus a light, neutral one. The same sound said with a di
 | ˇ | 3rd | dips, then comes back up |
 | ˋ | 4th | falls sharply |
 | ˙ (dot above the column) | neutral | short and light |
+
+## See how the tool works
+
+Open any Taiwanese page: a news site, a blog, a YouTube video's comments. Every character gets its zhuyin, so you can sound out text you've never seen. Point at a word you don't know and a card shows what it means, character by character. Select a sentence to translate it and see it split into words. Click a speaker, or press <kbd>R</kbd>, to hear any of it in a Taiwan Mandarin voice.
+
+### Using it to learn
+
+- **Read real pages from day one.** With zhuyin beside every character you can pronounce everything, even before you know what it means. Read the sentence aloud first, then point at the words you're unsure of.
+- **Wean yourself off zhuyin.** Once the common characters feel familiar, switch **Zhuyin on page** to `hover` (<kbd>Alt</kbd>+<kbd>Z</kbd>). The text is plain, and a character's zhuyin appears only while you point at it. When you rarely need that, switch to `off`.
+- **Test yourself.** Turn on **Hide meaning**. Each word or sentence opens with its meaning blurred, so you guess first, press <kbd>R</kbd> to hear it, and hold <kbd>Shift</kbd> to check.
+- **Shadow the voice.** Select a sentence, play it, and repeat it out loud along with the voice. The zhuyin shows each tone, so you can hear where yours differs.
+- **Learn in your own language.** Set **Translate to** to your language and **Second language** to English. Every meaning then shows in both, which helps when a translation in one of them is vague.
+- **See what a character is made of.** Point at a single character and its card shows its parts: 媽 is 女 *woman*, which gives the meaning, plus 馬 *horse*, which gives the sound (ㄇㄚˇ → ㄇㄚ). Click a part to open its own card and its parts, down to the basic pictures. Most characters have a meaning part and a sound part, so once you know the parts you can often guess both the meaning and the reading of a character you've never seen.
+- **Spot the common characters.** Under **Learn** in the settings, set **Most common** to tint the top 100 characters, or any number up to 1000. Each one always has the same colour on every page, so you start recognising them by colour before you know them by heart. Raise the number as you learn. The top 100 are listed [at the end of Usage](#the-100-most-common-characters).
+- **Mark what you want to remember.** Click the highlighter on a word card to add the character to **My characters**. It's then tinted and underlined wherever it appears, even with the common-character tint off.
+- **Take your list with you.** **Export** saves your characters to a file. **Import** in another browser adds them to the list there and removes nothing.
 
 ## Features
 
@@ -69,7 +87,7 @@ Highlight any text to get its translation (English unless you choose another lan
 
 Translations and voice clips are cached, so text you've already looked up on a site loads instantly and doesn't ask Google again.
 
-While the translation is open, the word card appears beside it rather than on top of it.
+While the translation is open, pointing at words on the page doesn't open word cards, so nothing pops up behind it.
 
 <p align="center"><img src="docs/img/select.png" alt="Selected sentence 我們先去銀行換錢 with a popup showing pinyin, the English translation and a word list" width="560"></p>
 
@@ -100,11 +118,43 @@ On a touch screen, press and hold the blurred text instead. The reveal key can b
 
 <p align="center"><img src="docs/img/hide-meaning.png" alt="The same translation box twice: on the left the translations and word meanings are blurred, the Chinese and zhuyin readable; on the right, with Shift held, everything is readable" width="820"></p>
 
+### What a character is made of
+
+Point at a single character, and its card shows what it's made of:
+- how it was formed: 形聲 a meaning part plus a sound part (most characters), 會意 an idea from its parts, or 象形 a picture,
+- each part with its zhuyin and meaning, tagged `meaning` or `sound`. A sound part shows its own reading and the character's (乞 ㄑㄧˇ → 吃 ㄔ),
+- where the character comes from, in a line or two from Wiktionary, with a link to the full entry.
+
+Click a part to open its card. The path at the top (`吃 › 乞`) and ‹ take you back. In the card for a word of two or three characters, click a character to open its card (`銀行 › 銀`). A part's card also lists the characters it gives its sound to.
+
+**Parts on word cards** turns this off. With a target language other than English, **Translate parts** adds it after each English part meaning.
+
+<p align="center"><img src="docs/img/parts.png" alt="Dark word card for 吃: meaning + sound, 口 mouth (meaning) and 乞 to beg (sound ㄑㄧˇ → ㄔ), its origin from Wiktionary; next to it the card for 銀, opened from the word 銀行, with 釒 metal (meaning) and 艮 (sound)" width="820"></p>
+
+### Tint the characters you're learning
+
+Under **Learn** in the settings:
+- **Most common** tints the most common characters on every page: the top 100, or any number up to 1000.
+- **My characters** are the ones you choose. Add one with the highlighter on its word card, or type or paste characters in the settings. They're tinted and underlined, even with Most common off.
+- **Look** has five ready-made styles: Soft box, Box + zhuyin, Highlighter, Coloured text, Underline. Hover one to preview it on the page. **Style**, **Covers** (the character, or the character and its zhuyin), **Palette** (nine of them, one colour-blind safe) and **Strength** fine-tune it.
+
+A character's colour comes from the character itself, so it's the same on every page and for everyone using the same palette. The word card shows the tint too.
+
+**Export** saves My characters to a file and copies them to the clipboard. **Import** reads such a file, or any text, and adds the characters in it to your list without removing any. That's how you move your list to another browser.
+
+<p align="center"><img src="docs/img/tint.png" alt="The demo page twice with the 100 most common characters tinted and 珠 and 夜 underlined as My characters: soft boxes on the left, coloured text on the right" width="820"></p>
+
 ### Settings
 
-The ⚙ button on the word card and in the translation box opens the settings, with every option visible at once. Changes apply right away. The same settings are also in Violentmonkey's menu for this script, and its **Settings…** entry opens the same panel. <kbd>Esc</kbd> or a click outside closes it.
+The ⚙ button on the word card and in the translation box opens the settings, in four tabs: **Page**, **Popups**, **Translate** and **Learn**. Changes apply right away. Violentmonkey's menu for this script has **Settings…**, which opens the same panel, and the older options; the new Learn options are only in the panel. <kbd>Esc</kbd> or a click outside closes it.
 
-<p align="center"><img src="docs/img/settings.png" alt="Dark settings panel: site mode, Translate to Lithuanian, second language, translator, hide meaning, reveal key, read aloud key, word gloss and the other options as button groups" width="400"></p>
+<p align="center"><img src="docs/img/settings.png" alt="Dark settings panel on the Learn tab: parts on word cards, translate parts, looks, most common, My characters with 珠 and 夜, style, covers, palettes, strength with a sample line, hide meaning and reveal key" width="400"></p>
+
+### What's new after an update
+
+After an update that adds something to try, the first page the script runs on shows a small note, once, linking to the [changelog](CHANGELOG.md) and the settings.
+
+Once a day, on a page the script runs on, it also checks whether a newer version is out (it reads the first kilobyte of the script on GitHub). If one is, a note offers **Install**, which opens Violentmonkey's update page, **Later**, which asks again the next day, and **Skip this version**. Violentmonkey updates scripts by itself too. The note is for when its auto-update is off or isn't due yet.
 
 ### Dark popups
 
@@ -154,11 +204,12 @@ Then in the script itself:
 - To force it, open the Violentmonkey icon on a local page → this script → **Local files: auto → on**. Or press <kbd>Alt</kbd>+<kbd>Z</kbd> on a page the script skipped.
 - The dictionaries come from Violentmonkey's storage, so no network is needed on local pages, except for Google translation and read-aloud.
 
-On install, Violentmonkey downloads two dictionaries once and keeps them in its storage:
+On install, Violentmonkey downloads three dictionaries once and keeps them in its storage:
 - the zhuyin dictionary from [yt-zhuyin](https://github.com/ashirviskas/yt-zhuyin), about 6.5 MB,
-- CC-CEDICT from MDBG, about 4 MB gzipped.
+- CC-CEDICT from MDBG, about 4 MB gzipped,
+- the character parts from this repository ([`data/`](data/README.md)), about 230 KB gzipped.
 
-Neither is loaded on pages that have no Chinese text. The meaning dictionary is only unpacked the first time you hover over a word, which takes about 200 ms.
+None of them is loaded on pages that have no Chinese text. The meaning dictionary is only unpacked the first time you hover over a word, which takes about 200 ms, and the character parts the first time a card shows a single character.
 
 ## Usage
 
@@ -172,28 +223,56 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 | <kbd>Shift</kbd> (held) | Show the meanings while **Hide meaning** is on. The key is a setting: <kbd>Shift</kbd>, <kbd>Alt</kbd> or <kbd>Ctrl</kbd>. |
 | <kbd>Esc</kbd> | Close the translation box, word card or settings, and stop reading aloud |
 
-### Settings (⚙ on a popup, or Violentmonkey icon → this script)
+### Settings (⚙ on a popup, or Violentmonkey icon → this script → Settings…)
 
-| Setting | Options |
-|---|---|
-| This site | `auto` (on when the page looks like Traditional Chinese) → `on` → `off`. Remembered per site. |
-| Translate to | English (default) or any language Google Translate offers: Spanish, Japanese, German… In the menu, any Google language code can be typed. |
-| Second language | `none` (default) or a second language, shown under the first |
-| Hide meaning | Off, or on: translations are blurred until the reveal key is held |
-| Reveal key | <kbd>Shift</kbd> (default), <kbd>Alt</kbd> or <kbd>Ctrl</kbd> |
-| Read aloud key | A letter, <kbd>R</kbd> by default, or <kbd>Alt</kbd> + a letter |
-| Zhuyin on page | `on` (default), `hover` (only on the word under the pointer) or `off`. The word card always shows it. |
-| Zhuyin in popups | `by each character` (default) or `after the word`, in the word card, the selected text and the word list |
-| Hover zhuyin | With `hover`: `label above` (default, moves nothing) or `in the line` |
-| Layout | `side`: textbook style, symbols beside the character. `top`: horizontal, above the character. |
-| Highlight polyphones | Tints characters whose reading is a best guess between several options |
-| Buttons & popups | `compact` or full zhuyin everywhere |
-| Word gloss | `hover`, `alt` (only while holding <kbd>Alt</kbd>), or `off` |
-| Translator | `google` (Google's free web endpoint, no key) or `local` (yt-zhuyin's `asr_server.py`, opus-mt, offline). `local` translates to English only; other languages always use Google. |
-| Pinyin in translation | Off: the word list shows zhuyin. On: a pinyin line under the selected text, and pinyin in the word list. |
-| Translate on select | On, or off so that only <kbd>Alt</kbd>+<kbd>T</kbd> translates |
-| Popup theme | `auto` (follows the system) → `dark` → `light` |
-| Cache | Size of the translation and voice cache per site in MB, 100 by default. 0 turns it off. |
+| Tab | Setting | Options |
+|---|---|---|
+| Page | This site | `auto` (on when the page looks like Traditional Chinese) → `on` → `off`. Remembered per site. |
+| Page | Zhuyin on page | `on` (default), `hover` (only on the word under the pointer) or `off`. The word card always shows it. |
+| Page | Hover zhuyin | With `hover`: `label above` (default, moves nothing) or `in the line` |
+| Page | Layout | `side`: textbook style, symbols beside the character. `top`: horizontal, above the character. |
+| Page | Highlight polyphones | Tints characters whose reading is a best guess between several options |
+| Page | Buttons & popups | `compact` or full zhuyin everywhere |
+| Popups | Word gloss | `hover`, `alt` (only while holding <kbd>Alt</kbd>), or `off` |
+| Popups | Zhuyin in popups | `by each character` (default) or `after the word`, in the word card, the selected text and the word list |
+| Popups | Translate on select | On, or off so that only <kbd>Alt</kbd>+<kbd>T</kbd> translates |
+| Popups | Pinyin in translation | Off: the word list shows zhuyin. On: a pinyin line under the selected text, and pinyin in the word list. |
+| Popups | Read aloud key | A letter, <kbd>R</kbd> by default, or <kbd>Alt</kbd> + a letter |
+| Popups | Popup theme | `auto` (follows the system) → `dark` → `light` |
+| Translate | Translate to | English (default) or any language Google Translate offers: Spanish, Japanese, German… In the menu, any Google language code can be typed. |
+| Translate | Second language | `none` (default) or a second language, shown under the first |
+| Translate | Translator | `google` (Google's free web endpoint, no key) or `local` (yt-zhuyin's `asr_server.py`, opus-mt, offline). `local` translates to English only; other languages always use Google. |
+| Translate | Cache | Size of the translation and voice cache per site in MB, 100 by default. 0 turns it off. |
+| Learn | Parts on word cards | `on` (default): a character's parts and origin on its card; click a part, or a character of a word, to open it |
+| Learn | Translate parts | `off` (default), or part meanings also in the target language(s) |
+| Learn | Look | Soft box, Box + zhuyin, Highlighter, Coloured text, Underline: style, covers, palette and strength in one click. Hover to preview. |
+| Learn | Most common | Tint the N most common characters: off (default), up to 1000 |
+| Learn | My characters | `on` (default): your characters tinted and underlined. Add, remove, export, import. |
+| Learn | Style | `box` (default), `highlighter`, `text` (coloured characters) or `underline` |
+| Learn | Covers | `character` (default) or `character + zhuyin` |
+| Learn | Palette | Pastel (default), Vivid, Earth, Ocean, Forest, Sunset, Berry, Mono, Colour-blind safe |
+| Learn | Strength | How strong the tint is, 35 % by default |
+| Learn | Hide meaning | Off, or on: translations are blurred until the reveal key is held |
+| Learn | Reveal key | <kbd>Shift</kbd> (default), <kbd>Alt</kbd> or <kbd>Ctrl</kbd> |
+
+Violentmonkey's menu has the Page, Popups and Translate settings, Hide meaning and Reveal key; the rest of Learn is only in the panel.
+
+### The 100 most common characters
+
+How often each character turns up in everyday Taiwanese text, by the script's dictionary. Together they make up about 40 % of it. With the script on, this page shows their zhuyin too.
+
+| | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **1–10** | 的 | 一 | 是 | 不 | 有 | 人 | 在 | 我 | 這 | 大 |
+| **11–20** | 會 | 以 | 國 | 來 | 個 | 為 | 中 | 了 | 可 | 們 |
+| **21–30** | 要 | 到 | 生 | 出 | 年 | 學 | 十 | 上 | 時 | 台 |
+| **31–40** | 他 | 能 | 就 | 成 | 多 | 地 | 家 | 過 | 自 | 行 |
+| **41–50** | 作 | 用 | 得 | 也 | 法 | 方 | 下 | 子 | 分 | 經 |
+| **51–60** | 所 | 發 | 之 | 沒 | 後 | 現 | 好 | 公 | 對 | 天 |
+| **61–70** | 民 | 麼 | 說 | 部 | 動 | 於 | 主 | 政 | 都 | 長 |
+| **71–80** | 本 | 業 | 因 | 看 | 開 | 然 | 事 | 如 | 小 | 面 |
+| **81–90** | 文 | 心 | 定 | 前 | 工 | 而 | 實 | 二 | 同 | 員 |
+| **91–100** | 樣 | 理 | 還 | 新 | 三 | 日 | 那 | 市 | 去 | 當 |
 
 ## How it works
 
@@ -207,6 +286,8 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
   - A `MutationObserver` picks up content added later (SPAs, infinite scroll, YouTube navigation).
   - Layout is measured in batches: once before and once after each slice. That's what drives the overflow guard behind compact mode.
 - **Meanings:** CC-CEDICT, sorted so the entry whose reading matches the zhuyin on the page comes first. That includes CC-CEDICT's "Taiwan pr." notes.
+- **Character parts:** one file merged from Make Me a Hanzi, CJKVI-IDS and Wiktionary by [`tools/components/`](tools/components/README.md). Wiktionary decides how a character was formed and which part gives the meaning or the sound; the other two say what its parts are.
+- **Tints:** a character's colour is a hash of the character mapped into the palette, so no colour table is stored. The tint is drawn behind the glyph and moves nothing on the page.
 - **UI:** the hover card and translation popup live in a closed shadow root, so page styles can't affect them.
 - **Cache:** Google translations and voice clips are stored in IndexedDB, and the least recently used are dropped first once the size limit is reached. Only audio that decoded and translations that parsed are stored, so an error page is never cached.
 
@@ -220,6 +301,7 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 - **Read aloud:** uses Google Translate's unofficial voice endpoint, with a Taiwan Mandarin speaker. When it can't be reached, the browser's own voice reads instead; on Linux that is often espeak-ng, which sounds robotic. The button's tooltip says when that happened and why. Google chooses the reading itself, so a single character can come out differently from the zhuyin on the page.
 - **Cache is per site:** IndexedDB belongs to the website's origin, so each site keeps its own cache, up to the set size each. Userscript storage is shared across sites, but Violentmonkey loads all of it into every page, which would slow every page load. Clearing a site's data in the browser also clears its cache.
 - **Simplified Chinese:** pages in Simplified Chinese are skipped in `auto` mode, because the dictionary covers Traditional characters.
+- **Character parts:** cover the 4,808 common characters of Taiwan's Ministry of Education list and their parts. A few mix a historical analysis with today's shape (保), and Make Me a Hanzi's hints are memory aids, sometimes folk etymology. Wiktionary's origin line is the more reliable one.
 
 ## Related
 
@@ -227,10 +309,11 @@ Neither is loaded on pages that have no Chinese text. The meaning dictionary is 
 
 ## Credits and license
 
-MIT, see [`LICENSE`](LICENSE).
+MIT, see [`LICENSE`](LICENSE), except the character-parts data in [`data/`](data/README.md), which is GPL-3.0-or-later.
 
 - **Zhuyin readings:** [McBopomofo](https://github.com/openvanilla/McBopomofo) dictionary data (MIT), via yt-zhuyin. The script downloads it at install; this repo doesn't include it.
 - **Word meanings:** [CC-CEDICT](https://cc-cedict.org/) by MDBG ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)). Also downloaded at install, not included here.
+- **Character parts:** [Make Me a Hanzi](https://github.com/skishore/makemeahanzi) (LGPL-3.0-or-later), [CJKVI-IDS](https://github.com/cjkvi/cjkvi-ids) from the CHISE IDS database (GPL-2.0-or-later), and glyph origins from the [English Wiktionary](https://en.wiktionary.org/) by Wiktionary contributors ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)), merged into [`data/components.tsv.gz`](data/README.md).
 - **Fonts in the README images:** LXGW WenKai TC, Noto Sans TC and Literata, all under the SIL Open Font License.
 
 ## Images in this README

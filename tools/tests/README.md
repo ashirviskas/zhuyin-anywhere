@@ -7,16 +7,18 @@ Run them with `sh tools/run.sh test` from the repository root; setup is in [`../
 | File | Covers |
 |---|---|
 | `harness.js` | Shared setup, see below |
-| `settings.test.js` | Settings panel and menu, target languages, word card and word list translations, copy, hide meaning and its reveal key, the read-aloud key |
+| `settings.test.js` | Settings panel tabs and menu, target languages, word card and word list translations, copy, hide meaning and its reveal key, the read-aloud key |
 | `zhuyin-modes.test.js` | Zhuyin on page (`on`/`hover`/`off`, Alt+Z), hover label vs. in the line, zhuyin in popups by each character |
+| `learn.test.js` | Tinted characters (top N, dark pages, nothing moves), looks previewed on hover, My characters (highlighter, add, remove, export, additive import), character parts and clicking into them, no cards behind the translation, the one-time "what's new" note |
 
 ## What `harness.js` fakes
 
-- **Violentmonkey's `GM_*` API.** Settings live in a plain object: pass starting values as `page(browser, { zhuyin: 'hover' })` and read what the script saved from `__st` in the page. Menu commands collect in `__menu`, the clipboard in `__clip`.
+- **Violentmonkey's `GM_*` API.** Settings live in a plain object: pass starting values as `page(browser, { zhuyin: 'hover' })` and read what the script saved from `__st` in the page. Menu commands collect in `__menu`, the clipboard in `__clip`. `GM_info` carries the script's `@version`, and `seenVersion` is set to it unless a test passes its own, so the "what's new" note stays away.
+- **Resources.** `zydict` from `../assets/vendor/`, `cedict` likewise, `comps` from `../../data/components.tsv.gz`.
 - **Google.** Every request is logged in `__req`. A translation comes back as `<target language>:<source line>`, line by line, so a test can see which language was asked for and how lines were batched. Read-aloud requests fail at once, so no audio plays.
 - **The closed shadow root.** `attachShadow` is patched to open it, and `sh(p, js)` runs `js` with `$`/`$$` bound to the popup's shadow root.
 
-`hover(p, word)` puts the pointer on a word on the page and waits for the card; `select(p)` selects 我們先去銀行換錢 and lets the translation open.
+`hover(p, word)` puts the pointer on a word on the page and waits for the card; `select(p)` selects 我們先去銀行換錢 and lets the translation open; `tab(p, 'Learn')` switches the open settings panel's tab.
 
 ## Screenshots
 

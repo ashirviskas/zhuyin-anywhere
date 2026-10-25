@@ -2,6 +2,34 @@
 
 Newest first. Versions are the userscript's `@version`; each entry lists the commits that make it up.
 
+## 0.9.0
+
+New things to try. They're all under **Learn** in the settings (⚙ on a word card):
+
+**What a character is made of.** Point at a single character: its card shows the meaning part and the sound part, how the character was formed (形聲, 會意, 象形) and where it comes from. Click a part to open its own card; in the card for a word, click a character.
+
+<img src="docs/img/parts.png" alt="Word card for 吃 with its parts 口 (meaning) and 乞 (sound), and the card for 銀 opened from 銀行" width="820">
+
+**Tint the common characters, and your own.** **Most common** tints the top 100 characters, or up to 1000, each always in the same colour. The highlighter on a word card adds a character to **My characters**, tinted and underlined everywhere. Five looks (hover to preview), nine palettes, a strength slider. Export and import your list.
+
+<img src="docs/img/tint.png" alt="The demo page with the 100 most common characters tinted, as soft boxes and as coloured text" width="820">
+
+**Settings in tabs**: Page, Popups, Translate, Learn.
+
+<img src="docs/img/settings.png" alt="The settings panel on its Learn tab" width="400">
+
+### `<hash>` · 2026-10-25 · TASK-004 feat(learn): Add character parts, tinted characters and settings tabs
+
+- Character parts on the word card: one-character cards show how the character was formed, each part with its zhuyin, meaning and role (`meaning`, `sound ㄑㄧˇ → ㄔ`), a hint, the origin from Wiktionary with a link, and the characters a part gives its sound to. Clicking a part, or a character row of a word's card, opens that character's card, with a path (`吃 › 乞`) and ‹ to go back. "Parts on word cards" (on) and "Translate parts" (off: part meanings in the target language too).
+- `data/components.tsv.gz` (GPL-3.0-or-later, 227 KiB): Make Me a Hanzi, CJKVI-IDS and Wiktionary glyph origins merged for the MOE's 4,808 common characters and their parts, built by `tools/components/`. Loaded as a new `@resource` the first time a card needs it.
+- Tinted characters: "Most common" (0–1000, from the zhuyin dictionary's counts) and "My characters" (saved; highlighter on one-character cards; chips, add, export to a file, additive import). Looks, style (box, highlighter, text, underline), covers (character or character + zhuyin), nine palettes, strength. Colour = FNV-1a hash of the character into the palette; darker on dark pages. The glyph's tint is a `::before` behind it, so nothing on the page moves. Hovering a look, style or palette previews it; the sliders apply on release.
+- Settings panel in tabs (Page, Popups, Translate, Learn) with section titles; it stays on screen when a tab is taller. The new options aren't in the Violentmonkey menu; "Settings…" is its first entry.
+- No word cards while the translation popup is open.
+- A one-time "what's new" note after an update, linking here and to the Learn settings.
+- "Update available" note: at most once a day the first kilobyte of the script on `main` is read for its `@version` (new `@connect raw.githubusercontent.com`). If it's newer: Install, What's new, Later, Skip this version.
+- Fix: a restarted page (Alt+Z back to `on`) could stay without zhuyin when the browser's idle callback only ever ran on its timeout.
+- README: "See how the tool works" with learning tips, new sections and images (`parts.png`, `tint.png`, `settings.png`; tints in `before-after.png` and `hover.png`), the 100 most common characters, how to say 注音. Popup crops in `select.png`, `languages.png` and `hide-meaning.png` no longer cut the popup off.
+
 ## 0.8.0
 
 ### `<hash>` · 2026-10-18 · TASK-003 feat(zhuyin): Add zhuyin on page on/hover/off and zhuyin beside characters in popups
