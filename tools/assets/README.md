@@ -33,18 +33,20 @@ With the same Chromium, fonts and dictionaries, the output is byte-identical to 
 
 ## How `build.js` works
 
-**Stage 1: demo screenshots** (`shots/`). Opens `site.html` at 640 px wide with 2× pixel density. Violentmonkey's `GM_*` API is faked in the page, so the userscript runs unmodified. Each state is triggered the way a user would trigger it:
+**Stage 1: demo screenshots** (`shots/`). Opens `site.html` at 640 px wide with 2× pixel density. Violentmonkey's `GM_*` API is faked in the page, so the userscript runs unmodified; the character parts come from `../../data/components.tsv.gz`, and the popup's shadow root is opened so a shot can click inside the card. Each state is triggered the way a user would trigger it:
 
 | Shot | How |
 |---|---|
 | `before.png` | Page without the script |
-| `after.png` | Page with the script |
-| `hover.png` | Mouse moved onto 珠 in 珍珠奶茶 and held for 1.6 s, so the hover card opens (large zhuyin, speaker button) |
+| `after.png` | Page with the script, the 100 most common characters tinted and 珠, 夜 as My characters (`tintTop: 100`, `myChars: '珠夜'`) |
+| `hover.png` | Mouse moved onto 珠 in 珍珠奶茶 and held for 1.6 s, so the hover card opens (large zhuyin, speaker button); same tints as `after.png` |
 | `select.png` | 我們先去銀行換錢 selected, then a mouseup, so the translation popup opens with its word list (zhuyin, since pinyin is off by default) |
 | `hover-dark.png`, `select-dark.png` | The same two states with Chromium in dark mode: `site.html` has a dark scheme, and the popups follow it (theme `auto`). For `dark.png` |
 | `hover-lang.png`, `select-lang.png` | Dark mode, `targetLang: 'lt'`, `targetLang2: 'en'`: the card for 夜市 and the popup for the same sentence. For `languages.png` |
 | `hidden.png`, `revealed.png` | The same popup with `hideMeaning: true`, then with <kbd>Shift</kbd> held down. For `hide-meaning.png` |
-| `settings.png` | The settings panel, opened through the faked menu's "Settings…" command (the shadow root is closed, so its ⚙ can't be clicked by selector) |
+| `settings.png` | The settings panel on its Learn tab, dark, with the tints of `after.png`, opened through the faked menu's "Settings…" command |
+| `parts.png`, `parts-open.png` | Dark: the card for 吃 with its parts; the card for 銀行 with its 銀 row clicked, so 銀's card opens. For `parts.png` |
+| `tint.png`, `tint-ink.png` | The page with the tints of `after.png`, as soft boxes and as coloured text (`tintStyle: 'ink'`, Vivid). For `tint.png` |
 | `modal-full.png` | Newsletter pop-up with `compactChrome: false` |
 | `modal-compact.png` | Newsletter pop-up with the default compact mode |
 

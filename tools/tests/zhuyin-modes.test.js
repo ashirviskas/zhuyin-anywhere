@@ -3,7 +3,7 @@ const { chromium, ok, page, sh, hover, select, outDir, done } = require('./harne
 const OUT = outDir(__filename);
 
 const zyBox = (p, word) => p.evaluate((word) => {
-  const w = [...document.querySelectorAll('zy-w')].find((w) => [...w.querySelectorAll('zy-c')].map((c) => c.firstChild.nodeValue).join('') === word);
+  const w = [...document.querySelectorAll('zy-w')].find((w) => [...w.querySelectorAll('zy-c')].map((c) => c.firstChild.textContent).join('') === word);
   const z = w.querySelector('zy-z'), c = w.getBoundingClientRect(), b = getComputedStyle(w, '::before');
   return { shown: getComputedStyle(z).display !== 'none', label: b.content !== 'none' && b.content !== 'normal' ? b.content : '',
     above: b.bottom === c.height + 'px', wWidth: c.width, wLeft: c.left };

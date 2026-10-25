@@ -1,13 +1,14 @@
 # Tools
 
-Nothing here is part of the userscript. It's what checks it and draws the README images.
+Nothing here is part of the userscript. It's what checks it, draws the README images and builds the character-parts data.
 
 | Folder | What it is |
 |---|---|
 | [`tests/`](tests/README.md) | Browser tests: the real userscript on a demo page in headless Chromium |
 | [`assets/`](assets/README.md) | Renders the images in `docs/img/` with the real userscript |
+| [`components/`](components/README.md) | Builds `data/components.tsv.gz` (character parts) with Python: `sh tools/components/build.sh` |
 
-Both use Node and Playwright. `run.sh` runs them with your own Node if you have it, otherwise in the Playwright container through podman (or docker), so nothing needs to be installed but the container runtime.
+Tests and images use Node and Playwright. `run.sh` runs them with your own Node if you have it, otherwise in the Playwright container through podman (or docker), so nothing needs to be installed but the container runtime.
 
 ## First time
 

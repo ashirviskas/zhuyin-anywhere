@@ -39,17 +39,24 @@ for (const f of ['vendor/zhuyin-dict.js', 'vendor/cedict.gz', 'fonts.css']) {
 }
 const DICT = fs.readFileSync(path.join(HERE, 'vendor/zhuyin-dict.js'), 'utf8');
 const CEDICT_B64 = fs.readFileSync(path.join(HERE, 'vendor/cedict.gz')).toString('base64');
+const COMPS_B64 = fs.readFileSync(path.join(ROOT, 'data/components.tsv.gz')).toString('base64');
 const fileUrl = (f) => 'file://' + path.join(HERE, f);
 
 // Violentmonkey's GM_* API, faked in the page so the userscript runs unmodified.
 // `store` pre-seeds GM_getValue (per-site mode, compact toggle, …).
+const VERSION = /@version\s+(\S+)/.exec(fs.readFileSync(SCRIPT, 'utf8'))[1];
 async function injectUserscript(page, store = {}) {
-  await page.evaluate(([dict, gz, st, tr]) => {
-    const bin = Uint8Array.from(atob(gz), (c) => c.charCodeAt(0));
-    const cedictUrl = URL.createObjectURL(new Blob([bin]));
+  store = { seenVersion: VERSION, updateCheck: Date.now(), ...store };   // no "what's new" or update note in the images
+  await page.evaluate(([dict, gz, comps, st, tr, version]) => {
+    // the popup's closed shadow root, opened so a shot can click a row of the card
+    const att = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function (o) { return (window.__sh = att.call(this, { ...o, mode: 'open' })); };
+    const blob = (b64) => URL.createObjectURL(new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))]));
+    const cedictUrl = blob(gz), compsUrl = blob(comps);
     Object.assign(window, {
+      GM_info: { script: { version } },
       GM_getResourceText: () => dict,
-      GM_getResourceURL: (name) => (name === 'cedict' ? cedictUrl : null),
+      GM_getResourceURL: (name) => (name === 'cedict' ? cedictUrl : name === 'comps' ? compsUrl : null),
       GM_getValue: (k, v) => (k in st ? st[k] : v),
       GM_setValue: (k, v) => { st[k] = v; },
       // menu commands are kept by name, so a shot can open "Settings…" the way a user would
@@ -60,7 +67,7 @@ async function injectUserscript(page, store = {}) {
         setTimeout(() => o.onload({ status: 200, responseText: JSON.stringify([[[out, q]]]) }), 30);
       },
     });
-  }, [DICT, CEDICT_B64, store, TRANSLATIONS]);
+  }, [DICT, CEDICT_B64, COMPS_B64, store, TRANSLATIONS, VERSION]);
   await page.addScriptTag({ path: SCRIPT });
   await page.waitForTimeout(1200);   // idle-callback annotation slices
 }
@@ -76,7 +83,7 @@ async function demoPage(browser, { script = true, store = {}, modal = false, h =
   return p;
 }
 const charCenter = (p, word, idx) => p.evaluate(([word, idx]) => {
-  const w = [...document.querySelectorAll('zy-w')].find((w) => [...w.querySelectorAll('zy-c')].map((c) => c.firstChild.nodeValue).join('') === word);
+  const w = [...document.querySelectorAll('zy-w')].find((w) => [...w.querySelectorAll('zy-c')].map((c) => c.firstChild.textContent).join('') === word);
   const r = w.querySelectorAll('zy-c')[idx].getBoundingClientRect();
   return { x: r.left + r.width * 0.3, y: r.top + r.height / 2 };
 }, [word, idx]);
@@ -98,12 +105,14 @@ async function shootDemo(browser) {
   let p;
 
   p = await demoPage(browser, { script: false }); await p.screenshot({ path: out('before.png') }); await p.close();
-  p = await demoPage(browser); await p.screenshot({ path: out('after.png') }); await p.close();
+  // with the script: the 100 most common characters tinted, and two of My characters (珠, 夜) underlined too
+  const learnStore = { tintTop: 100, myChars: '珠夜' };
+  p = await demoPage(browser, { store: learnStore }); await p.screenshot({ path: out('after.png') }); await p.close();
 
   // hover card and selection popup, with the system (site.html and the popups' 'auto' theme) light, then dark
   for (const [sfx, colorScheme] of [['', 'light'], ['-dark', 'dark']]) {
     // hover card: point at 珠 in 珍珠奶茶 (tall viewport so the card opens below the word)
-    p = await demoPage(browser, { h: 600, colorScheme });
+    p = await demoPage(browser, { h: 600, store: learnStore, colorScheme });
     const c = await charCenter(p, '珍珠奶茶', 1);
     await p.mouse.move(5, 5); await p.mouse.move(c.x, c.y); await p.waitForTimeout(1600);
     await p.screenshot({ path: out(`hover${sfx}.png`) }); await p.close();
@@ -135,11 +144,32 @@ async function shootDemo(browser) {
     await p.screenshot({ path: out(name + '.png') }); await p.close();
   }
 
-  // settings panel, opened from the menu (the ⚙ on a popup opens the same panel)
-  p = await demoPage(browser, { h: 1150, store: { targetLang: 'lt' }, colorScheme: 'dark' });
+  // settings panel, Learn tab, opened from the menu (the ⚙ on a popup opens the same panel)
+  p = await demoPage(browser, { h: 1400, store: learnStore, colorScheme: 'dark' });
   await p.evaluate(() => window.__menu['Settings…']());
   await p.waitForTimeout(300);
+  await p.evaluate(() => [...__sh.querySelectorAll('.set .tabs button')].find(b => b.textContent === 'Learn').click());
+  await p.waitForTimeout(300);
   await p.screenshot({ path: out('settings.png') }); await p.close();
+
+  // character parts, dark: the card for 吃, then 銀行 with its 銀 row clicked
+  p = await demoPage(browser, { h: 600, colorScheme: 'dark' });
+  let c = await charCenter(p, '吃', 0);
+  await p.mouse.move(5, 5); await p.mouse.move(c.x, c.y); await p.waitForTimeout(1600);
+  await p.screenshot({ path: out('parts.png') }); await p.close();
+  p = await demoPage(browser, { h: 600, colorScheme: 'dark' });
+  c = await charCenter(p, '銀行', 0);
+  await p.mouse.move(5, 5); await p.mouse.move(c.x, c.y); await p.waitForTimeout(1600);
+  const row = await p.evaluate(() => { const r = __sh.querySelector('.gl .parts .part').getBoundingClientRect(); return { x: r.left + 40, y: r.top + r.height / 2 }; });
+  await p.mouse.move(row.x, row.y); await p.mouse.down(); await p.mouse.up(); await p.waitForTimeout(600);
+  await p.mouse.move(row.x + 200, row.y - 40);   // off the row, still on the card
+  await p.screenshot({ path: out('parts-open.png') }); await p.close();
+
+  // tinted characters: top 100 and My characters (吃, 夜, 市), two looks
+  for (const [name, look] of [['tint', {}], ['tint-ink', { tintStyle: 'ink', tintPalette: 'vivid', tintStrength: 100 }]]) {
+    p = await demoPage(browser, { store: { ...learnStore, ...look } });
+    await p.screenshot({ path: out(name + '.png') }); await p.close();
+  }
 
   // newsletter pop-up: full zhuyin vs compact mode
   p = await demoPage(browser, { modal: true, store: { compactChrome: false } }); await p.screenshot({ path: out('modal-full.png') }); await p.close();
@@ -222,6 +252,8 @@ const README_IMAGES = {
   'languages':    () => document.getElementById('lang'),
   'hide-meaning': () => document.getElementById('hide'),
   'settings':     () => document.getElementById('settings'),
+  'parts':        () => document.getElementById('parts'),
+  'tint':         () => document.getElementById('tint'),
   'context':      () => document.querySelector('.context'),
   'compact':      () => document.getElementById('compact').querySelector('.pair'),
 };
