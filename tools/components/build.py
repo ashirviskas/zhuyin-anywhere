@@ -67,6 +67,21 @@ def same_form(x, y):
     return x == y or FORM_EQ.get(x, x) == FORM_EQ.get(y, y) or (x in "阝⻖⻏" and y in "阜邑")
 
 
+INITIALS = re.compile(r"^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(.*)$")
+
+
+def syllable(py):
+    """'tà' -> ('d', 'a'): initial (aspiration dropped) and final, tone dropped."""
+    s = "".join(c for c in unicodedata.normalize("NFD", py.lower()) if not unicodedata.combining(c))
+    i, f = INITIALS.match(s).groups()
+    return {"p": "b", "t": "d", "k": "g", "q": "j", "ch": "zh", "c": "z"}.get(i, i), f   # 簸 bǒ / 皮 pí alike
+
+
+def sounds_alike(a, b):
+    """Some reading of a shares its initial, or a letter of its final, with some reading of b (蹋 tà / 日 rì: no)."""
+    return any(x[0] and x[0] == y[0] or set(x[1]) & set(y[1]) for x in map(syllable, a) for y in map(syllable, b))
+
+
 # -------------------------------------------------------------- IDS parsing
 
 def ids_parse(s):
@@ -522,7 +537,11 @@ class Merger:
                 if k:
                     roles[k] = r; hit = True
                 elif x and len(x) == 1 and x not in roles and parts:
-                    # A names a part that the structure only holds nested; show A's view
+                    # A names a part that the structure only holds nested; show A's view, unless it's a sound part
+                    # that sounds nothing like the character: then A misread the glyph (蹋 is 足 + 𦐇, not 日)
+                    xp = self.A.get(x, {}).get("pinyin")
+                    if r == "p" and xp and a.get("pinyin") and not sounds_alike(a["pinyin"], xp):
+                        continue
                     parts.append(x); roles[x] = r; hit = True
             if hit:
                 rsrc = "A"
@@ -543,8 +562,9 @@ class Merger:
             cut = prose[:origin_max]
             k = max(cut.rfind(". "), cut.rfind("。"))
             prose = cut[:k + 1] if k > origin_max // 3 else cut.rstrip() + "…"
-        if ty in ("pic", "ind") and not any(r in ("s", "p") for r in roles.values()):
-            parts = []  # a pictograph's strokes are not parts with a meaning (木 is not 十 + 八)
+        if ty in ("pic", "ind") and not any(r in ("s", "p") for r in roles.values()) \
+                and not all(any(same_form(x, h) for h in ae.get("hint", "")) for x in parts):
+            parts = []  # a pictograph's strokes are not parts with a meaning (木 is not 十 + 八), unless the hint names them (我: 扌 戈)
         if parts and not any(self.gloss(x)[0] for x in parts if x not in UNENC):
             parts = []  # e.g. 門 -> 𠁣 𠃛: halves with no meaning in any source; show none
         plist = []

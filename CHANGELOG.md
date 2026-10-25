@@ -2,6 +2,17 @@
 
 Newest first. Versions are the userscript's `@version`; each entry lists the commits that make it up.
 
+## 0.9.1
+
+**Explanations in your language.** With **Learn › Translate explanations** on and a target language other than English, a character's card shows the hint and the origin in that language too, under the English, as well as each part's meaning.
+
+### `<hash>` · 2026-10-25 · TASK-005 fix(learn): Translate hints and origins, split pictographs their hint describes
+
+- "Translate parts" is now "Translate explanations": the hint and the origin are translated too (from English, one line per target language under the English).
+- Pictographs whose Make Me a Hanzi hint names every part show those parts as shapes: 我 = 扌 + 戈, 果 = 田 + 木, 東 = 木 + 日 (72 characters). Pictographs whose hint names nothing still show none (日, 木).
+- A sound part from Make Me a Hanzi that the structure only holds nested, and that sounds nothing like the character, is dropped: 蹋 (ㄊㄚˋ) is 足 + 𦐇, and no longer lists 日 (ㄖˋ) as its sound part, so 日's "Sound part in" loses it.
+- The what's-new note lists every version since the one last seen, so someone coming from 0.8 still hears about 0.9.0.
+
 ## 0.9.0
 
 New things to try. They're all under **Learn** in the settings (⚙ on a word card):

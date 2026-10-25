@@ -127,7 +127,7 @@ Point at a single character, and its card shows what it's made of:
 
 Click a part to open its card. The path at the top (`吃 › 乞`) and ‹ take you back. In the card for a word of two or three characters, click a character to open its card (`銀行 › 銀`). A part's card also lists the characters it gives its sound to.
 
-**Parts on word cards** turns this off. With a target language other than English, **Translate parts** adds it after each English part meaning.
+**Parts on word cards** turns this off. With a target language other than English, **Translate explanations** adds it after each English part meaning, and under the hint and the origin.
 
 <p align="center"><img src="docs/img/parts.png" alt="Dark word card for 吃: meaning + sound, 口 mouth (meaning) and 乞 to beg (sound ㄑㄧˇ → ㄔ), its origin from Wiktionary; next to it the card for 銀, opened from the word 銀行, with 釒 metal (meaning) and 艮 (sound)" width="820"></p>
 
@@ -244,7 +244,7 @@ None of them is loaded on pages that have no Chinese text. The meaning dictionar
 | Translate | Translator | `google` (Google's free web endpoint, no key) or `local` (yt-zhuyin's `asr_server.py`, opus-mt, offline). `local` translates to English only; other languages always use Google. |
 | Translate | Cache | Size of the translation and voice cache per site in MB, 100 by default. 0 turns it off. |
 | Learn | Parts on word cards | `on` (default): a character's parts and origin on its card; click a part, or a character of a word, to open it |
-| Learn | Translate parts | `off` (default), or part meanings also in the target language(s) |
+| Learn | Translate explanations | `off` (default), or part meanings, the hint and the origin also in the target language(s) |
 | Learn | Look | Soft box, Box + zhuyin, Highlighter, Coloured text, Underline: style, covers, palette and strength in one click. Hover to preview. |
 | Learn | Most common | Tint the N most common characters: off (default), up to 1000 |
 | Learn | My characters | `on` (default): your characters tinted and underlined. Add, remove, export, import. |
