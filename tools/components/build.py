@@ -31,6 +31,20 @@ IDC = IDC2 | IDC3 | IDC1
 UNENC = set("？?") | {chr(c) for c in range(0x2460, 0x2474)}  # ？ and ①-⑳
 STROKES = set("一丨丶丿乙乚乛亅㇀㇁㇂㇃㇄㇅㇆㇇㇈㇉㇊㇋㇌㇍㇎㇏㇐㇑㇒㇓㇔㇕㇖㇗㇘㇙㇚㇛㇜㇝㇞㇟㇠㇡㇢㇣𠃊𠃋𠃌𠃍𠃑𡿨")
 
+# Single strokes as parts: their own dictionary senses mislead (丨 "number one", 丶 "dot; KangXi radical 3").
+STROKE_NAMES = {"丨": "vertical stroke", "丿": "falling stroke", "丶": "dot", "亅": "hook", "乛": "turning stroke",
+                "𠃌": "turning stroke", "㇏": "rising stroke"}
+HAN_CH = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\U00020000-\U0003134f]")
+
+
+def mentioned(prose, ch):
+    """Characters an origin's first sentence builds ch from, when it names no roles (用: "adding a handle to 同").
+    Parenthesised asides and comparisons ("contrast 下", "compare 口") don't count."""
+    first = re.split(r"(?<=\.) | ¶ |\n", prose)[0]
+    first = re.split(r"\b(?:[Cc]ompare|[Cc]ontrast|[Cc]f\.|[Ss]ee|[Ss]imilar)\b", re.sub(r"\([^)]*\)", "", first))[0]
+    return list(dict.fromkeys(x for x in HAN_CH.findall(first) if x != ch))
+
+
 # Radical / variant forms that may lack a gloss in A and CC-CEDICT. Filled from measurement
 # (see analyze.py, question 4). Meanings follow the Kangxi radical they stand for.
 RADICAL_TABLE = {
@@ -65,6 +79,21 @@ FORM_EQ = {"亻": "人", "𠆢": "人", "氵": "水", "氺": "水", "扌": "手"
 
 def same_form(x, y):
     return x == y or FORM_EQ.get(x, x) == FORM_EQ.get(y, y) or (x in "阝⻖⻏" and y in "阜邑")
+
+
+INITIALS = re.compile(r"^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(.*)$")
+
+
+def syllable(py):
+    """'tà' -> ('d', 'a'): initial (aspiration dropped) and final, tone dropped."""
+    s = "".join(c for c in unicodedata.normalize("NFD", py.lower()) if not unicodedata.combining(c))
+    i, f = INITIALS.match(s).groups()
+    return {"p": "b", "t": "d", "k": "g", "q": "j", "ch": "zh", "c": "z"}.get(i, i), f   # 簸 bǒ / 皮 pí alike
+
+
+def sounds_alike(a, b):
+    """Some reading of a shares its initial, or a letter of its final, with some reading of b (蹋 tà / 日 rì: no)."""
+    return any(x[0] and x[0] == y[0] or set(x[1]) & set(y[1]) for x in map(syllable, a) for y in map(syllable, b))
 
 
 # -------------------------------------------------------------- IDS parsing
@@ -461,6 +490,8 @@ class Merger:
         return got
 
     def gloss(self, ch):
+        if ch in STROKE_NAMES:
+            return STROKE_NAMES[ch], "R"
         if ch in RADICAL_TABLE:
             return RADICAL_TABLE[ch], "R"
         d = self.A.get(ch, {}).get("definition")
@@ -522,7 +553,11 @@ class Merger:
                 if k:
                     roles[k] = r; hit = True
                 elif x and len(x) == 1 and x not in roles and parts:
-                    # A names a part that the structure only holds nested; show A's view
+                    # A names a part that the structure only holds nested; show A's view, unless it's a sound part
+                    # that sounds nothing like the character: then A misread the glyph (蹋 is 足 + 𦐇, not 日)
+                    xp = self.A.get(x, {}).get("pinyin")
+                    if r == "p" and xp and a.get("pinyin") and not sounds_alike(a["pinyin"], xp):
+                        continue
                     parts.append(x); roles[x] = r; hit = True
             if hit:
                 rsrc = "A"
@@ -543,8 +578,24 @@ class Merger:
             cut = prose[:origin_max]
             k = max(cut.rfind(". "), cut.rfind("。"))
             prose = cut[:k + 1] if k > origin_max // 3 else cut.rstrip() + "…"
-        if ty in ("pic", "ind") and not any(r in ("s", "p") for r in roles.values()):
-            parts = []  # a pictograph's strokes are not parts with a meaning (木 is not 十 + 八)
+        # Parts with no meaning or sound role are only the glyph's shapes: show none (木 is not 十 + 八; 用 is not
+        # 冂 + 二 + 丨), unless the hint names them all (我: "A hand 扌 holding a weapon 戈").
+        if not any(r in ("s", "p") for r in roles.values()) \
+                and not all(any(same_form(x, h) for h in ae.get("hint", "")) for x in parts):
+            parts = []
+        # Wiktionary's analysis, when the parts shown don't hold it: the glyph changed (用 is 同 + a handle;
+        # 星 was 晶 + 生). Its components with their roles; failing that, the characters its first sentence names.
+        # Only analyses that say what each part does (or 會意, where every part is a meaning part).
+        cands = [(t, h) for *_, t, h in ranked if t == "ic" or any(r in ("s", "p") for _, r in h)]
+        if cands:   # the one naming the most roles (年: 禾 + 人, not 禾 alone); the best-matching one on a tie
+            t, h = max(cands, key=lambda th: sum(r in ("s", "p") for _, r in th[1]))
+            best = [(x, r if r in ("s", "p") else "s" if t == "ic" else "f") for x, r in h]
+        elif c.get("prose_roles"):
+            best = c["prose_roles"]
+        else:
+            best = [(x, "f") for x in mentioned(c.get("prose") or "", ch)] if ty in ("psc", "ic") and not parts else []
+        best = [(x, r if r in ("s", "p") else "f") for x, r in dict(best).items() if x != ch and x not in UNENC]
+        hist = [] if all(any(same_form(x, k) for k in parts) for x, _ in best) else best
         if parts and not any(self.gloss(x)[0] for x in parts if x not in UNENC):
             parts = []  # e.g. 門 -> 𠁣 𠃛: halves with no meaning in any source; show none
         plist = []
@@ -552,7 +603,7 @@ class Merger:
             plist.append(x + roles.get(x, "f"))
         return {
             "ch": ch, "parts": " ".join(plist), "type": ty, "gloss": g, "hint": (ae.get("hint") or ""),
-            "origin": prose, "src": psrc + tsrc + rsrc + gsrc,
+            "origin": prose, "src": psrc + tsrc + rsrc + gsrc, "from": " ".join(x + r for x, r in hist),
         }
 
 
@@ -575,14 +626,14 @@ def build(args):
         done.add(ch)
         r = M.merge(ch, args.origin_max)
         rows.append(r)
-        for p in r["parts"].split():
+        for p in (r["parts"] + " " + r["from"]).split():
             x = p[:-1]
             if x not in done and x not in UNENC:
                 todo.append(x)
     rows.sort(key=lambda r: r["ch"])
     lines = ["\t".join([r["ch"], r["parts"], r["type"], r["gloss"].replace("\t", " "), r["hint"].replace("\t", " "),
-                        r["origin"], r["src"]]) for r in rows]
-    head = ("# zhuyin-anywhere character components (data/README.md). Fields: char parts type gloss hint origin src\n"
+                        r["origin"], r["src"], r["from"]]) for r in rows]
+    head = ("# zhuyin-anywhere character components (data/README.md). Fields: char parts type gloss hint origin src from\n"
             "# License: GPL-3.0-or-later. Built by tools/components/build.py from: Make Me a Hanzi dictionary.txt (LGPL-3.0-or-later), "
             "CJKVI-IDS ids.txt / CHISE-IDS (GPL-2.0-or-later), English Wiktionary glyph origins by Wiktionary contributors "
             "(CC BY-SA 4.0, https://en.wiktionary.org/wiki/<char>; shortened and converted to plain text), CC-CEDICT (CC BY-SA 4.0).\n")

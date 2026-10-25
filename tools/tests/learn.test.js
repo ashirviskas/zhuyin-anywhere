@@ -120,11 +120,41 @@ const learn = async (p) => { await p.evaluate(() => __menu.find(m => m[0] === 'S
   ok(await sh(p, `!$('.gl .comp')`), 'parts off: no parts section');
   await p.close();
 
-  // translate parts: English kept, Lithuanian after it
+  // translate explanations: English kept, Lithuanian after it (meanings) or under it (origin)
   p = await page(browser, { targetLang: 'lt', targetLang2: 'en', partsLang: true });
   await hover(p, '吃', 0); await p.waitForTimeout(300);
-  ok(await sh(p, `$$('.gl .comp .cr .m').map(m => m.textContent).join('|') === 'mouth · lt:mouth|to beg · lt:to beg'`), 'translate parts: English, then Lithuanian');
-  ok(await p.evaluate(() => __req.some(u => u.includes('sl=en&tl=lt'))), 'part meanings translated from English');
+  ok(await sh(p, `$$('.gl .comp .cr .m').map(m => m.textContent).join('|') === 'mouth · lt:mouth|to beg · lt:to beg'`), 'translate explanations: part meanings in English, then Lithuanian');
+  ok(await sh(p, `(t => t.startsWith('LTlt:Phono-semantic compound') && t.includes('\\n'))($('.gl .comp .org.m + .org.ot').textContent)`), 'translate explanations: origin under the English, paragraphs kept');
+  ok(await p.evaluate(() => __req.some(u => u.includes('sl=en&tl=lt'))), 'explanations translated from English');
+  await p.screenshot({ path: OUT + '/11-translated-origin.png' });
+  await p.close();
+
+  // a character whose parts changed (夜 = 亦 sound + 夕 meaning, not visible today): no shape rows, an honest
+  // header, the older parts on their own line, clickable
+  p = await page(browser);
+  await hover(p, '夜市', 0);
+  xy = await at(p, `$$('.gl .parts .part')[0]`);
+  await p.mouse.move(xy.x, xy.y); await p.mouse.down(); await p.mouse.up(); await p.waitForTimeout(300);
+  ok(await sh(p, `$$('.gl .comp .cr').length === 0 && $('.gl .comp .how').textContent.includes('no longer visible')`), '夜: no shape rows, header says the parts are no longer visible');
+  ok(await sh(p, `$('.gl .comp .org.old').textContent === 'Older parts · 亦 sound + 夕 meaning'`), '夜: older parts 亦 (sound) + 夕 (meaning)');
+  await p.screenshot({ path: OUT + '/13-older-parts.png' });
+  xy = await at(p, `$('.gl .comp .org.old .go')`);
+  await p.mouse.move(xy.x, xy.y); await p.mouse.down(); await p.mouse.up(); await p.waitForTimeout(300);
+  ok(await sh(p, `$('.gl .crumb').textContent === '‹夜市 › 夜 › 亦'`), 'older part opens its card');
+  await p.close();
+
+  // a newcomer with a Lithuanian browser: Lithuanian first, English second, explanations in both
+  p = await page(browser, {}, 'light', 'lt-LT');
+  await hover(p, '吃', 0); await p.waitForTimeout(300);
+  ok(await sh(p, `$$('.gl .lg').slice(0, 2).map(l => l.textContent).join(' ') === 'LT EN' && !!$('.gl .comp .org.ot .lg')`), 'browser language lt: LT then EN, origin translated');
+  await p.close();
+
+  // a pictograph whose hint names its shapes shows them: 我 = 扌 + 戈
+  p = await page(browser);
+  await hover(p, '我們', 0);
+  xy = await at(p, `$$('.gl .parts .part')[0]`);
+  await p.mouse.move(xy.x, xy.y); await p.mouse.down(); await p.mouse.up(); await p.waitForTimeout(300);
+  ok(await sh(p, `$$('.gl .comp .cr .g').map(g => g.firstChild.textContent[0]).join('') === '扌戈'`), '我: shape parts 扌 戈');
   await p.close();
 
   // 5. With the translation open, hovering the page opens no word card
@@ -132,11 +162,28 @@ const learn = async (p) => { await p.evaluate(() => __menu.find(m => m[0] === 'S
   await select(p);
   await hover(p, '珍珠奶茶');
   ok(await sh(p, `$('.tr').style.display === 'block' && $('.gl').style.display !== 'block'`), 'translation open: no word card on hover');
+  // the word list's › puts the word's card in the popup's place, with the sentence in the crumb to go back
+  ok(await sh(p, `$$('.wl .go').length === $$('.wl .h').length && $$('.wl .go').length > 1`), 'word list: a › on every word');
+  xy = await at(p, `$$('.wl .go')[0]`);
+  await p.mouse.move(xy.x, xy.y); await p.mouse.down(); await p.mouse.up(); await p.waitForTimeout(400);
+  ok(await sh(p, `$('.gl').style.display === 'block' && $('.tr').style.display === 'none' && $('.gl .hw .han').textContent.startsWith('我')
+    && $('.gl .crumb').textContent === '‹我們先去銀… › 我們'`), 'word list: › replaces the sentence with the word card, crumb back to it');
+  await p.screenshot({ path: OUT + '/12-word-list-open.png' });
+  await p.mouse.move(5, 5); await p.waitForTimeout(800);
+  await hover(p, '珍珠奶茶');
+  ok(await sh(p, `$('.gl .hw .han').textContent.startsWith('我')`), 'word list: the card stays while the pointer is on the page');
+  xy = await at(p, `$$('.gl .parts .part')[0]`);
+  await p.mouse.move(xy.x, xy.y); await p.mouse.down(); await p.mouse.up(); await p.waitForTimeout(300);
+  ok(await sh(p, `$('.gl .crumb').textContent === '‹我們先去銀… › 我們 › 我'`), 'word list: into a character, crumb sentence › word › character');
+  xy = await at(p, `$$('.gl .crumb button')[1]`);
+  await p.mouse.move(xy.x, xy.y); await p.mouse.down(); await p.mouse.up(); await p.waitForTimeout(400);
+  ok(await sh(p, `$('.tr').style.display === 'block' && $('.gl').style.display !== 'block' && $$('.wl .go').length > 1`), 'word list: the sentence in the crumb brings the translation back');
   await p.close();
 
   // 6. What's new: once after an update, on the first page the script runs on
   p = await page(browser, { seenVersion: '0.8.0' });
   ok(await sh(p, `$('.news').style.display === 'block' && $('.news a').href.endsWith('CHANGELOG.md#' + '${VERSION}'.replaceAll('.', ''))`), "what's new: shown after an update, links to the changelog");
+  ok(await sh(p, `$$('.news p').length === 4`), "what's new: every version since the last one seen (0.9.0 to 0.9.3)");
   await p.screenshot({ path: OUT + '/10-whats-new.png' });
   await sh(p, `$$('.news button').find(b => b.textContent === 'Open Learn settings').click()`); await p.waitForTimeout(200);
   ok(await p.evaluate((v) => __st.seenVersion === v, VERSION) && await sh(p, `$('.news').style.display === 'none' && $('.set .tabs .on').textContent === 'Learn'`), "what's new: button opens the Learn tab, note put away for good");

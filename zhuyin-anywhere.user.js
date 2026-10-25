@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         注音 anywhere (Traditional Mandarin → zhuyin + select-to-translate)
 // @namespace    local.zhuyin-anywhere
-// @version      0.9.0
+// @version      0.9.3
 // @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its meaning (CC-CEDICT, or Google in other languages); select text to translate it into English, Lithuanian or another language. Speaker buttons read words and selections aloud in Taiwan Mandarin. ⚙ on the popups opens the settings.
 // @match        *://*/*
 // @match        file:///*
@@ -78,6 +78,11 @@
   'use strict';
 
   // ---------------------------------------------------------------- config
+  // A newcomer's language: the browser's, with English second; English alone for English and Chinese browsers.
+  const BROWSER_LANG = (() => {
+    const b = (navigator.language || 'en').toLowerCase().split('-')[0];
+    return b === 'zh' ? 'en' : ({ nb: 'no', nn: 'no', fil: 'tl' })[b] ?? b;
+  })();
   const CFG = {
     zhuyin: GM_getValue('zhuyin', 'on'),             // on the page: 'on' | 'hover' (over the hovered word only) | 'off'; the card always shows it
     popupZhuyin: GM_getValue('popupZhuyin', 'beside'),// card, selected text, word list: 'beside' (by each character) | 'after' (after the word, one line)
@@ -88,8 +93,8 @@
     showPolyphones: GM_getValue('poly', false),       // tint single chars whose reading is a guess among several
     translator: GM_getValue('translator', 'google'),  // 'google' | 'local'
     localServer: 'http://127.0.0.1:8765',             // yt-zhuyin asr_server.py
-    targetLang: GM_getValue('targetLang', 'en'),     // Google language code; CC-CEDICT senses only for 'en'
-    targetLang2: GM_getValue('targetLang2', ''),     // optional second language, shown under the first; '' = none
+    targetLang: GM_getValue('targetLang', BROWSER_LANG),// Google language code; CC-CEDICT senses only for 'en'
+    targetLang2: GM_getValue('targetLang2', BROWSER_LANG === 'en' ? '' : 'en'),// optional second language, shown under the first; '' = none
     autoTranslate: GM_getValue('autoTranslate', true),// popup on every CJK selection; false = Alt+T only
     pinyin: GM_getValue('pinyin', false),             // selection popup: pinyin line, and pinyin instead of zhuyin in the word list
     compactChrome: GM_getValue('compactChrome', true),// buttons + fixed/sticky boxes (popups, headers): zhuyin hidden, gloss on hover
@@ -101,7 +106,7 @@
     revealKey: GM_getValue('revealKey', 'Shift'),     // KeyboardEvent.key: 'Shift' | 'Alt' | 'Control'
     speakKey: GM_getValue('speakKey', 'R'),           // 'R' or 'Alt+R': reads the open card or popup aloud (only while one is open)
     parts: GM_getValue('parts', true),                // word card: what a character is made of, its origin; click a part to open it
-    partsLang: GM_getValue('partsLang', false),       // part meanings also in the target language(s) when not English
+    partsLang: GM_getValue('partsLang', true),        // part meanings, hint and origin also in the target language(s) when not English
     tintTop: GM_getValue('tintTop', 0),               // tint the N most common characters; 0 = off, up to 1000
     tintMine: GM_getValue('tintMine', true),          // tint (and underline) My characters
     myChars: GM_getValue('myChars', ''),              // My characters, one string; added from the card's highlighter or the settings
@@ -667,7 +672,8 @@
   // ---------------------------------------------------------------- character parts
   // components.tsv.gz, built by tools/components from Make Me a Hanzi, CJKVI-IDS and Wiktionary (GPL-3.0-or-later,
   // see data/). One line per character: char, parts ("女s 馬p": s meaning, p sound, f shape), type, gloss, hint,
-  // origin. Loaded like CC-CEDICT: an @resource, read the first time a card wants it.
+  // origin, src, older parts (Wiktionary's, when today's glyph doesn't show them: 年 "禾s 人p"). Loaded like
+  // CC-CEDICT: an @resource, read the first time a card wants it.
   const COMPS_URL = 'https://cdn.jsdelivr.net/gh/ashirviskas/zhuyin-anywhere@main/data/components.tsv.gz';
   let COMPS = null, compsP = null;
   const SOUND_IN = new Map();   // part → characters it gives the sound to
@@ -680,9 +686,9 @@
       const map = new Map();
       for (const line of (await gunzipMaybe(buf)).split('\n')) {
         if (!line || line.startsWith('#')) continue;
-        const [ch, parts, type, gloss, hint, origin] = line.split('\t');
-        const ps = parts ? parts.split(' ').map(x => [x.slice(0, -1), x.at(-1)]) : [];
-        map.set(ch, { parts: ps, type, gloss, hint, origin });
+        const [ch, parts, type, gloss, hint, origin, , from] = line.split('\t');
+        const split = (f) => (f ? f.split(' ').map(x => [x.slice(0, -1), x.at(-1)]) : []), ps = split(parts);
+        map.set(ch, { parts: ps, type, gloss, hint, origin, from: split(from) });
         for (const [pc, role] of ps) if (role === 'p') { const a = SOUND_IN.get(pc); a ? a.push(ch) : SOUND_IN.set(pc, [ch]); }
       }
       if (map.size < 1000) throw new Error('character parts download looks truncated');
@@ -790,7 +796,7 @@
   }
   // Words for the hover card and the word list, Google only: the ones not cached go in one request, one
   // per line; Google keeps the lines apart. If it ever merges lines, each word is asked on its own.
-  // sl 'en': English part meanings (飠 "food") for "Translate parts".
+  // sl 'en': English part meanings (飠 "food"), hints and origins for "Translate explanations".
   async function translateWords(words, lang, sl = 'zh-TW') {
     const from = sl === 'zh-TW' ? '' : sl + '>';
     const mk = (w) => 'google|' + from + lang + '|' + w, dk = (w) => 'tr|' + from + lang + '|' + w;
@@ -906,7 +912,7 @@
     .say.on{color:#1a5fb4;background:rgba(26,95,180,.12)}.box{color-scheme:light}
     .seg button.on{color:#fff;background:#1a5fb4}.set select,.set input{background:rgba(0,0,0,.06);color:#222}
     .k{color:#8a6100;background:rgba(200,150,0,.13)}.r.sem{color:#1e7e34;background:rgba(30,126,52,.1)}.r.pho{color:#1a5fb4;background:rgba(26,95,180,.1)}
-    .org a,.news a{color:#1a5fb4}.pal.on{outline-color:#1a5fb4}.gl .mk.on{color:#b07d00}.tabs button.on{background:rgba(26,95,180,.15)}.gl .cfg,.gl .mk,.tabs button{background:none}`
+    .org a,.news a,.org.old .go:hover{color:#1a5fb4}.pal.on{outline-color:#1a5fb4}.gl .mk.on{color:#b07d00}.tabs button.on{background:rgba(26,95,180,.15)}.gl .cfg,.gl .mk,.tabs button{background:none}`
     .replace(/([^{}]+)\{/g, (_, sel) => sel.split(',').map(x => host + ' ' + x.trim()).join(',') + '{');
   let pop = null;
   function popup() {
@@ -948,7 +954,8 @@
       button{all:unset;cursor:pointer;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.08);color:#ddd;font-size:12px}
       button:hover{background:rgba(255,255,255,.16)}
       .words{margin-top:8px;padding-top:6px;border-top:1px solid rgba(127,127,127,.25);font-size:13px;max-height:40vh;overflow:auto}
-      .wl{display:grid;grid-template-columns:auto auto auto 1fr;gap:1px 8px;align-items:baseline}
+      .wl{display:grid;grid-template-columns:auto auto auto 1fr auto;gap:1px 8px;align-items:baseline}
+      .wl .go{align-self:center;padding:0 7px;font-size:15px;line-height:1.3;opacity:.7}.wl .go:hover{opacity:1}
       .wl .say{align-self:center;padding:1px 4px}
       .wl .h{font-family:"Noto Sans TC","PingFang TC",sans-serif;font-size:15px}
       .wl .p{color:#8ab4f8;font-size:12px;white-space:nowrap;font-family:"Noto Sans TC","PingFang TC",sans-serif}
@@ -1028,7 +1035,8 @@
       .r.sem{background:rgba(129,201,149,.15);color:#81c995}.r.pho{background:rgba(138,180,248,.17);color:#8ab4f8}
       .arr{opacity:.45;font-size:16px;line-height:1}
       .org{font-size:12px;opacity:.7;margin-top:5px;line-height:1.45;white-space:pre-line}.org b{font-weight:600}
-      .org a,.news a{color:#8ab4f8;text-decoration:none}
+      .org a,.news a{color:#8ab4f8;text-decoration:none}.org.ot{margin-top:2px}.org.ot:empty{display:none}
+      .org.old{opacity:.85;white-space:normal}.org.old .zc{font-size:16px;font-family:"Noto Sans TC","PingFang TC",sans-serif}.org.old .go{cursor:pointer}.org.old .go:hover{color:#8ab4f8}
       .ser{font-size:12px;margin-top:4px;opacity:.85}.ser .zc{font-size:16px;margin-right:6px;cursor:pointer;font-family:"Noto Sans TC","PingFang TC",sans-serif}
       .parts .part.go{display:grid;grid-template-columns:auto 1fr 12px;align-items:baseline}
       @media (prefers-color-scheme: light){${LIGHT(':host([data-theme=auto])')}}
@@ -1189,8 +1197,9 @@
       for (const l of ls) { const c = el('span', null, l === 'en' ? (e && shortDef(e)) || '—' : '…'); d.append(c); goog.get(l)?.push(c); }
       const beside = CFG.popupZhuyin === 'beside' && !CFG.pinyin && zys, h = el('span', 'h');
       h.append(beside ? zyChars(w.chars.slice(a, b), zys) : word);
+      const go = el('button', 'go', '›'); go.title = 'Open ' + word; go.onclick = () => openWord(w.chars.slice(a, b), zys);
       grid.append(sayBtn(word), h, el('span', 'p', beside ? '' : !CFG.pinyin ? (zys ? zys.map(normZhuyin).join(' ') : '')
-        : zys ? zys.map(zhuyinToPinyin).join('') : (e ? numToMarked(e.num).replace(/ /g, '') : '')), d);
+        : zys ? zys.map(zhuyinToPinyin).join('') : (e ? numToMarked(e.num).replace(/ /g, '') : '')), d, go);
     }
     if (!grid.childElementCount) return;
     pop.words.replaceChildren(grid); pop.words.style.display = 'block';
@@ -1277,8 +1286,13 @@
     if (!e && !sounds.length) return false;
     const reading = (c) => D.c[c]?.[0][0];
     const form = e?.type?.startsWith('var:') ? ['異體', 'variant of ' + e.type.slice(4)] : FORMS[e?.type];
-    if (form) { const how = el('div', 'how'); how.append(el('span', 'k', form[0]), el('span', 'h', form[1])); box.append(how); }
-    const glosses = [];   // [English meaning, its cell] for "Translate parts"
+    // A meaning + sound (or idea) character whose parts today's glyph doesn't show: say so rather than promise rows.
+    const lost = (e?.type === 'psc' || e?.type === 'ic') && !e.parts.some(([, r]) => r === 's' || r === 'p');
+    if (form) {
+      const how = el('div', 'how'); how.append(el('span', 'k', form[0]), el('span', 'h', form[1] + (lost ? ' · no longer visible in today’s form' : '')));
+      box.append(how);
+    }
+    const glosses = [], notes = [];   // [English text, its element] for "Translate explanations": part meanings, hint and origin
     const counts = new Map();
     for (const [pc, role] of e?.parts ?? []) { const k = pc + role; counts.set(k, (counts.get(k) ?? 0) + 1); }
     for (const [k, n] of counts) {
@@ -1294,12 +1308,24 @@
       if (meaning) glosses.push([meaning, m]);
       box.append(row);
     }
+    // Wiktionary's parts when the glyph has changed since (年: 禾 meaning + 人 sound), each clickable.
+    if (e?.from.length) {
+      const o = el('div', 'org old'); o.append(el('b', null, 'Older parts'), ' · ');
+      e.from.forEach(([pc, role], i) => {
+        if (i) o.append(' + ');
+        const g = el('span', 'zc', pc);
+        if (COMPS.get(pc) && !UNENCODED.test(pc)) { g.classList.add('go'); g.title = 'Open ' + pc; g.onclick = () => openChar(pc); }
+        o.append(g);
+        if (role === 's' || role === 'p') o.append(' ', el('span', 'r ' + (role === 's' ? 'sem' : 'pho'), role === 's' ? 'meaning' : 'sound'));
+      });
+      box.append(o);
+    }
     // Make Me a Hanzi's hint, when it says more than the meaning part's name ("woman"); it's a memory aid, not history.
-    if (e?.hint && e.hint.includes(' ')) { const h = el('div', 'org m'); h.append(el('b', null, 'Hint'), ' · ' + e.hint); box.append(h); }
+    if (e?.hint && e.hint.includes(' ')) { const h = el('div', 'org m'); h.append(el('b', null, 'Hint'), ' · ' + e.hint); box.append(h); notes.push([e.hint, h]); }
     if (e?.origin) {
       const o = el('div', 'org m'), a = el('a', null, 'Wiktionary ↗');
       a.href = 'https://en.wiktionary.org/wiki/' + encodeURIComponent(ch); a.target = '_blank'; a.rel = 'noopener';
-      o.append(el('b', null, 'Origin'), ' · ' + e.origin.replaceAll(' ¶ ', '\n') + ' ', a); box.append(o);
+      o.append(el('b', null, 'Origin'), ' · ' + e.origin.replaceAll(' ¶ ', '\n') + ' ', a); box.append(o); notes.push([e.origin, o]);
     }
     if (sounds.length) {   // most common first
       const rank = (c) => { const i = (TOP ?? topChars()).indexOf(c); return i < 0 ? 1e4 : i; };
@@ -1310,12 +1336,20 @@
       }
       box.append(ser);
     }
-    // English part meanings also in the target language(s), after the English.
-    const ls = langs().filter(l => l !== 'en');
-    if (CFG.partsLang && ls.length && glosses.length) {
-      for (const l of ls) translateWords(glosses.map(x => x[0]), l, 'en').then((out) => {
-        if (!stale()) glosses.forEach(([, m], i) => { if (out[i]) m.append(el('span', 'tp', ' · ' + out[i])); });
-      }).catch(() => {});
+    // The English also in the target language(s): part meanings after the English, the hint and origin
+    // under theirs, one line per language, in the order of the languages whichever answers first.
+    const ls = langs().filter(l => l !== 'en'), texts = [...glosses, ...notes].map(x => x[0]);
+    if (CFG.partsLang && ls.length && texts.length) {
+      const slots = notes.map(() => ls.map(() => el('div', 'org ot')));
+      slots.forEach((ds, i) => notes[i][1].after(...ds));
+      ls.forEach((l, li) => translateWords(texts, l, 'en').then((out) => {
+        if (stale()) return;
+        glosses.forEach(([, m], i) => { if (out[i]) m.append(el('span', 'tp', ' · ' + out[i])); });
+        slots.forEach((ds, i) => {
+          const t = out[glosses.length + i];
+          if (t) ds[li].append(el('span', 'lg', l.toUpperCase()), t.replace(/\s*¶\s*/g, '\n'));
+        });
+      }).catch(() => {}));
     }
     return true;
   }
@@ -1363,6 +1397,16 @@
   // the cards opened before it by clicking a part or a character, shown as a crumb (媽 › 馬) to go back.
   let card = null;
   const rerenderCard = () => { if (card && shown('gl')) renderCard(card); };
+  // A word of the translation popup's list, opened with its ›: its card takes the popup's place, under the selection,
+  // with the sentence first in the crumb to go back. Like the popup it stays until a click elsewhere (pinned).
+  function openWord(chars, zys) {
+    const text = pop.text;
+    hidePopup(); hideGloss(); glossWord = pop.box;
+    renderCard({ chars, zys, hi: -1, alts: null, rect: selRect, trail: [{ sentence: text, chars: [text.length > 6 ? text.slice(0, 5) + '…' : text] }] });
+  }
+  const pinned = () => shown('box') || (shown('gl') && !!card?.trail[0]?.sentence);
+  // A crumb entry: a card, or the sentence the cards were opened from.
+  const goBack = (t, trail) => (t.sentence ? showTranslation(t.sentence, selRect) : renderCard({ ...t, trail }));
   // A character's own card, opened from a part or a character row of the open card.
   function openChar(ch) {
     const z = loadDict().c[ch]?.[0][0];
@@ -1384,10 +1428,10 @@
     const top = [];
     if (trail.length) {
       const cr = el('div', 'crumb'), back = el('button', null, '‹');
-      back.title = 'Back'; back.onclick = () => renderCard({ ...trail.at(-1), trail: trail.slice(0, -1) });
+      back.title = 'Back'; back.onclick = () => goBack(trail.at(-1), trail.slice(0, -1));
       cr.append(back);
       trail.forEach((t, i) => {
-        const b = el('button', null, t.chars.join('')); b.onclick = () => renderCard({ ...t, trail: trail.slice(0, i) });
+        const b = el('button', null, t.chars.join('')); b.onclick = () => goBack(t, trail.slice(0, i));
         cr.append(b, ' › ');
       });
       cr.append(el('span', 'cur', word));
@@ -1512,7 +1556,7 @@
       clearTimeout(hideT); clearTimeout(showT); hoverWord = glossWord; return;
     }
     if (e.buttons) { hoverWord = null; hideGloss(); return; }   // drag-selecting: no card over the selection
-    if (shown('box')) { hoverWord = null; return; }   // the translation is open: the page behind it stays quiet
+    if (pinned()) { hoverWord = null; return; }   // the translation, or a card from it, is open: the page behind it stays quiet
     const w = e.target.closest?.('zy-w') ?? null;
     if (w && w !== glossWord && onWayToCard(e.clientX, e.clientY)) { clearTimeout(hideT); return; }
     const cc = e.target.closest?.('zy-c') ?? null;
@@ -1527,7 +1571,7 @@
     if (CFG.gloss === 'alt' && !e.altKey) return;
     showT = setTimeout(() => { if (hoverWord === w) showGloss(w, cc); }, w === glossWord ? 0 : CFG.glossDelay);
   }, true);
-  addEventListener('scroll', hideGloss, { capture: true, passive: true });
+  addEventListener('scroll', () => { if (!pinned()) hideGloss(); }, { capture: true, passive: true });
 
   document.addEventListener('mouseup', (e) => {
     if (pointer === 'touch' || (pop && e.composedPath().includes(pop.hostEl))) return;
@@ -1574,21 +1618,26 @@
 
   // ---------------------------------------------------------------- what's new
   // After an update that brings something to try, the first page the script runs on shows one small note,
-  // once: what's new, a link to the changelog and to the settings. Any click on it, or ✕, puts it away for good.
+  // once: what's new in every version since the last one seen, a link to the changelog and to the settings. Any
+  // click on it, or ✕, puts it away for good.
   const VERSION = GM_info.script.version;
   const NEWS = {
     '0.9.0': 'Word cards show what a character is made of: click a part to open it. Tint the most common characters, or your own, on every page. Settings now have tabs.',
+    '0.9.1': 'A character’s hint and origin come in your language too (Learn › Translate explanations).',
+    '0.9.2': 'Select a sentence, then click › next to a word in its list to open that word’s card.',
+    '0.9.3': 'When a character’s parts changed over time (年 was 禾 + 人), its card shows the older parts instead of misleading shapes.',
   };
   function whatsNew() {
-    if (GM_getValue('seenVersion', '') === VERSION || !NEWS[VERSION]) return;
+    const seenV = GM_getValue('seenVersion', '') || '0', vs = Object.keys(NEWS).filter(v => newer(v, seenV) && !newer(v, VERSION));
+    if (!vs.length) return;
     const p = popup(), seen = () => { GM_setValue('seenVersion', VERSION); p.news.style.display = 'none'; };
     const link = el('a', null, 'What’s new'), learnBtn = el('button', null, 'Open Learn settings'), x = el('button', null, '✕');
-    link.href = 'https://github.com/ashirviskas/zhuyin-anywhere/blob/main/CHANGELOG.md#' + VERSION.replaceAll('.', '');
+    link.href = 'https://github.com/ashirviskas/zhuyin-anywhere/blob/main/CHANGELOG.md#' + vs.at(-1).replaceAll('.', '');
     link.target = '_blank'; link.rel = 'noopener'; link.onclick = seen;
     learnBtn.onclick = () => { seen(); setTab = 'learn'; openSettings(null); };
     x.title = 'Close'; x.onclick = seen;
     const bar = el('div', 'bar'); bar.append(el('span'), link, learnBtn, x);
-    p.news.replaceChildren(el('div', 'ttl', '注音 anywhere ' + VERSION), el('p', null, NEWS[VERSION]), bar);
+    p.news.replaceChildren(el('div', 'ttl', '注音 anywhere ' + VERSION), ...vs.map(v => el('p', null, NEWS[v])), bar);
     p.news.style.display = 'block';
   }
 
@@ -1669,8 +1718,8 @@
     { tab: 'translate', label: 'Cache, MB per site', k: 'cacheMB', num: true, hint: 'Google translations and voice clips; 0 = off' },
     { tab: 'learn', sec: 'Character parts', ui: true, label: 'Parts on word cards', k: 'parts', opts: onOff, apply: hideGloss,
       hint: 'What a character is made of: the meaning part, the sound part, its origin. Click a part, or a character of a word, to open its card' },
-    { tab: 'learn', ui: true, label: 'Translate parts', k: 'partsLang', opts: onOff, apply: hideGloss,
-      hint: 'With a target language other than English: part meanings in it too, after the English' },
+    { tab: 'learn', ui: true, label: 'Translate explanations', k: 'partsLang', opts: onOff, apply: hideGloss,
+      hint: 'With a target language other than English: part meanings, the hint and the origin in it too, under the English' },
     { tab: 'learn', sec: 'Tint characters', ui: true, label: 'Look', render: looksCtl, hint: 'Hover a look, a style or a palette to preview it on the page' },
     { tab: 'learn', ui: true, label: 'Most common', k: 'tintTop', range: [0, 1000, 10], fmt: (v) => (v ? 'top ' + v : 'off'), apply: reTint,
       hint: 'Each character always gets the same colour, on every page' },
