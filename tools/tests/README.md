@@ -7,9 +7,11 @@ Run them with `sh tools/run.sh test` from the repository root; setup is in [`../
 | File | Covers |
 |---|---|
 | `harness.js` | Shared setup, see below |
-| `settings.test.js` | Settings panel tabs and menu, target languages, word card and word list translations, copy, hide meaning and its reveal key, the read-aloud key |
+| `settings.test.js` | Settings panel tabs and menu, target languages, word card and word list translations, copy, hide meaning and its reveal key, the read-aloud key, popup size |
 | `zhuyin-modes.test.js` | Zhuyin on page (`on`/`hover`/`off`, Alt+Z), hover label vs. in the line, zhuyin in popups by each character |
 | `learn.test.js` | Tinted characters (top N, dark pages, nothing moves), looks previewed on hover, My characters (highlighter, add, remove, export, additive import), character parts and clicking into them, no cards behind the translation, the one-time "what's new" note |
+| `long-pages.test.js` | Only text near the screen annotated, far-off text restored to the original, nothing on screen moves while scrolling, tint previews, the Performance setting |
+| `placement.test.js` | Cards open below a word in the top half and above it in the bottom half, keep that edge when a card opens from a card, and wait longer before hiding then |
 
 ## What `harness.js` fakes
 

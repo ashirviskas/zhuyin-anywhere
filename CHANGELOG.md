@@ -2,6 +2,23 @@
 
 Newest first. Versions are the userscript's `@version`; each entry lists the commits that make it up.
 
+## 0.9.4
+
+**Long pages stay fast.** Zhuyin is now added only near the screen: a few screens ahead as you scroll, and taken off again far behind. On a whole book (*Le Petit Prince*, 21,000 characters) hovering the tint looks in the settings used to freeze the page for up to 4 seconds at a time; now it doesn't. Set **Page › Zhuyin is added** to `to the whole page` for the old behaviour.
+
+**Popup size.** **Popups › Popup size** makes the card, the translation and the settings bigger or smaller, 70 % to 200 %.
+
+**Cards stay put.** A card opens below a word in the top half of the screen and above it in the bottom half, every time. It no longer jumps to the other side when its text loads, or when a smaller card opens from it (a part, "Sound part in"). A card opened from a card also waits longer before it hides.
+
+### `<hash>` · 2026-10-25 · TASK-008 perf(page): Annotate only near the screen, scale popups, open cards on a fixed side
+
+- Lazy annotation (`lazy`, on by default): a text node waits until its parent comes within 2 screens of the viewport and goes back to plain text 6 screens away (two `IntersectionObserver`s, plus a box-distance check for text in scrolling boxes). A selection is never cut.
+- Tints: colours cached per character, only changed cells written, hover previews coalesced to one redraw per frame.
+- Bench, *Le Petit Prince* (plain text, 21k characters, headless Chromium): annotated elements 154k → 8k; first annotation 2.5 s → 0.4 s of long tasks; hovering across 30 tint buttons 30.4 s → 1.1 s (longest task 3.9 s → 0.12 s); scrolling 150 × 300 px 23.2 s → 1.3 s.
+- Popup size (`popupScale`, 100 %): every px of the popups' CSS is `calc(px × --zs)`; not CSS `zoom`, which also scales a box's own position and `vw`.
+- `place()`: the side comes from the anchor's position on screen (upper half → below, lower half → above), the edge facing the anchor is pinned and the height capped to the room on that side (it scrolls). Horizontally a box starts at the anchor's left edge, moved left only as far as its widest possible size needs, never by its current width. A card opened from a card stays at least 1.5 s after the pointer leaves.
+- README image `languages.png`: the 夜市 card starts a little left of the word, as it now keeps room for its widest size.
+
 ## 0.9.3
 
 **Older parts.** Many common characters have changed so much that their parts can't be seen any more. Their cards used to break them into meaningless shapes (用 as 冂 + 二 + 丨). Now they say so, and show the parts the character was built from: 年 was 禾 (meaning) + 人 (sound), 夜 was 亦 (sound) + 夕 (meaning). Click one to open it.

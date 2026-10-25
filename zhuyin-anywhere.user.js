@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         注音 anywhere (Traditional Mandarin → zhuyin + select-to-translate)
 // @namespace    local.zhuyin-anywhere
-// @version      0.9.3
+// @version      0.9.4
 // @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its meaning (CC-CEDICT, or Google in other languages); select text to translate it into English, Lithuanian or another language. Speaker buttons read words and selections aloud in Taiwan Mandarin. ⚙ on the popups opens the settings.
 // @match        *://*/*
 // @match        file:///*
@@ -38,7 +38,9 @@
  *     6.5 MB @require that yt-zhuyin uses would be parsed on every page load of every site).
  *  3. TreeWalker over text nodes, time-sliced in idle callbacks. Each Han run is segmented with the
  *     same unigram max-likelihood segmenter as yt-zhuyin, so polyphones get word-level readings
- *     (銀行 ㄏㄤˊ, not ㄒㄧㄥˊ). MutationObserver feeds new content into the same queue.
+ *     (銀行 ㄏㄤˊ, not ㄒㄧㄥˊ). MutationObserver feeds new content into the same queue. With "Zhuyin is
+ *     added: near the screen" (lazy), two IntersectionObservers annotate text only within a few screens of
+ *     the viewport and put text far away back, so a book-length page stays a few thousand elements.
  *  4. Rendering: yt-zhuyin's textbook layout — vertical column right of the character, ˙ drawn as a
  *     dot above, ˊˇˋ in their own slot. Optional 'top' layout. Zhuyin is user-select:none and is
  *     also stripped from the selection text, so copy/translate see only the Chinese. "Zhuyin on page" can
@@ -51,7 +53,9 @@
  *     injection, so 10 MB there would cost every site load. Entries are sorted so the one matching the
  *     zhuyin on the page comes first (incl. CEDICT's "Taiwan pr. [...]" notes). A segmenter word that
  *     CEDICT doesn't have (IME phrases like 最好的) is split into CEDICT words for the card and word list.
- *  6. Selection → translation popup (shadow DOM, isolated from page CSS) in the target language. Google
+ *  6. Selection → translation popup (shadow DOM, isolated from page CSS) in the target language. place() opens every
+ *     popup on the side its anchor's screen position decides, with the edge facing the anchor pinned, so popups
+ *     don't jump as they fill or as a card opens from a card; "Popup size" scales every px of their CSS. Google
  *     gtx endpoint by default, or yt-zhuyin's local asr_server /translate (opus-mt, English only). With
  *     a target other than English the hover card and the word list are Google too (one batched request),
  *     as CC-CEDICT is English-only. "Hide meaning" blurs every translation until the reveal key is held.
@@ -99,9 +103,13 @@
     pinyin: GM_getValue('pinyin', false),             // selection popup: pinyin line, and pinyin instead of zhuyin in the word list
     compactChrome: GM_getValue('compactChrome', true),// buttons + fixed/sticky boxes (popups, headers): zhuyin hidden, gloss on hover
     overflowGuard: true,                              // a box that starts overflowing after annotation goes compact
+    lazy: GM_getValue('lazy', true),                  // annotate only text near the screen, put far-off text back (long pages stay fast)
+    nearScreens: 2,                                   // lazy: annotated once this many viewport heights away, or closer
+    farScreens: 6,                                    // lazy: back to plain text once this far
     theme: GM_getValue('theme', 'auto'),              // popups: 'auto' (follows the system) | 'dark' | 'light'
     cacheMB: GM_getValue('cacheMB', 100),             // Google translations + voice kept in IndexedDB, per site; 0 = off
     gloss: GM_getValue('gloss', 'hover'),             // 'hover' | 'alt' (hold Alt while hovering) | 'off' (plain title tooltip)
+    popupScale: GM_getValue('popupScale', 100),       // % size of the popups: text, spacing and boxes
     hideMeaning: GM_getValue('hideMeaning', false),   // popups open, but translations stay blurred until revealKey is held
     revealKey: GM_getValue('revealKey', 'Shift'),     // KeyboardEvent.key: 'Shift' | 'Alt' | 'Control'
     speakKey: GM_getValue('speakKey', 'R'),           // 'R' or 'Alt+R': reads the open card or popup aloud (only while one is open)
@@ -116,6 +124,7 @@
     tintStrength: GM_getValue('tintStrength', 35),    // % opacity of box, highlighter and underline
     glossDelay: 220,                                  // ms of hover before the card shows
     glossHideDelay: 400,                              // ms off the word and card before the card hides
+    glossKeep: 1500,                                  // ms, at least, after a card is opened from a card
     glossSlack: 40,                                   // px around the word and card that still count as on them
     glossMaxEntries: 4,                               // CEDICT entries per word
     glossMaxDefs: 6,                                  // definitions per entry
@@ -333,7 +342,15 @@
   };
   const fnv = (s) => { let h = 0x811c9dc5; for (const b of new TextEncoder().encode(s)) { h ^= b; h = Math.imul(h, 0x01000193) >>> 0; } return h; };
   // A dark page (light text) gets darker, stronger tints; coloured text gets a lightness that stays readable.
+  // Cached per character until a tint setting changes (refreshTints clears it): a page has thousands of cells.
+  const colours = new Map();
   function tintColour(ch, dark, under = false) {
+    const key = ch + (dark ? 'd' : '') + (under ? 'u' : '');
+    let col = colours.get(key);
+    if (!col) colours.set(key, (col = tintRgb(ch, dark, under)));
+    return col;
+  }
+  function tintRgb(ch, dark, under) {
     let [L, C, H] = (PALETTES[CFG.tintPalette] ?? PALETTES.pastel)[1](fnv(ch)), a = CFG.tintStrength / 100;
     if (under || CFG.tintStyle === 'ink') { L = dark ? .78 : .52; C = Math.max(C, .12); a = 1; }
     else if (dark) { L = Math.max(.32, L - .42); C *= .9; a = Math.min(1, a * 1.6); }
@@ -362,11 +379,13 @@
     return !!m && (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255 > 0.6;
   }
   // Mark one element as tinted ('t', or 'm' for My characters), or unmark it (t falsy). dark: colours for a dark background.
+  // Writes only what changed: each write restyles the cell, and a refresh visits every cell on the page.
   function paint(e, ch, t, dark) {
     if (!t) { if (e.hasAttribute('data-t')) { e.removeAttribute('data-t'); e.style.removeProperty('--zyt'); e.style.removeProperty('--zyu'); } return; }
-    e.setAttribute('data-t', t);
-    e.style.setProperty('--zyt', tintColour(ch, dark));
-    if (t === 'm') e.style.setProperty('--zyu', tintColour(ch, dark, true)); else e.style.removeProperty('--zyu');
+    const set = (k, v) => { if (e.style.getPropertyValue(k) !== v) e.style.setProperty(k, v); };
+    if (e.getAttribute('data-t') !== t) e.setAttribute('data-t', t);
+    set('--zyt', tintColour(ch, dark));
+    if (t === 'm') set('--zyu', tintColour(ch, dark, true)); else if (e.style.getPropertyValue('--zyu')) e.style.removeProperty('--zyu');
   }
   // A page cell, or a character in the popups (dark: the popup's theme).
   const tintCell = (e, ch, dark = pageDark) => paint(e, ch, tintSet().get(ch), dark);
@@ -377,12 +396,16 @@
     root.toggle('zyh-tc', CFG.tintCovers === 'char');
   };
   // After a tint setting changes (or while one is previewed): every cell on the page, and the settings sample.
+  let refreshQ = 0;
   function refreshTints() {
-    tints = null; pageDark = isDarkPage();
+    cancelAnimationFrame(refreshQ); refreshQ = 0;
+    tints = null; colours.clear(); pageDark = isDarkPage();
     tintClass();
     if (active) for (const c of document.querySelectorAll('zy-c')) tintCell(c, c.firstChild?.textContent ?? '');
     if (pop) { pop.hostEl.dataset.ts = CFG.tintStyle; const pv = pop.set.querySelector('.pv'); if (pv) paintSample(pv); }
   }
+  // Once per frame at most: sweeping the pointer across the settings leaves one button and enters the next in one frame.
+  const refreshSoon = () => { refreshQ ||= requestAnimationFrame(refreshTints); };
 
   // ---------------------------------------------------------------- rendering
   function zhuyinParts(z) {
@@ -524,8 +547,9 @@
       const batch = [];
       while ((pending.length || queue.length) && budget() && batch.length < 300) {
         if (!pending.length) { collectTextNodes(queue.shift(), pending); continue; }
-        const n = pending.shift();
-        if (n.isConnected && n.parentNode) batch.push(n);
+        const n = pending.shift(), pe = n.parentElement;
+        if (!n.isConnected || !pe) continue;
+        if (CFG.lazy && !nearEls.has(pe)) watch(pe); else batch.push(n);
       }
       if (batch.length) {
         const boxes = new Set(), compact = batch.map(n => isChrome(n.parentElement));
@@ -542,6 +566,36 @@
     } finally { observe(); }
     scheduled = false;
     if (pending.length || queue.length) { scheduled = true; idle(work, { timeout: 500 }); }
+  }
+
+  // ---- long pages: only text near the screen is annotated ----
+  // A book annotated whole is 150k+ elements, and every scroll, tint change and settings preview pays for all of them.
+  // So a text node waits until its parent element comes within nearScreens of the viewport, and goes back to plain
+  // text once it's farScreens away. The distance is also measured from the element's box, as the observers report an
+  // element clipped by a scrolling box as off screen however close it is. A hidden element (a zero box) counts as near:
+  // annotated up front as before, so a menu doesn't reflow as it opens.
+  let nearEls = new WeakSet(), nearIO = null, farIO = null;
+  const screensAway = (r) => Math.max(0, r.top - innerHeight, -r.bottom) / innerHeight;
+  function watch(el) {
+    nearIO ??= new IntersectionObserver((es) => {
+      for (const e of es) {
+        if (!e.target.isConnected) { nearIO.unobserve(e.target); farIO.unobserve(e.target); }
+        else if (e.isIntersecting || screensAway(e.boundingClientRect) < CFG.nearScreens) { if (!nearEls.has(e.target)) { nearEls.add(e.target); enqueue(e.target); } }
+        else nearEls.delete(e.target);
+      }
+    }, { rootMargin: `${CFG.nearScreens * 100}% 0px` });
+    farIO ??= new IntersectionObserver((es) => {
+      const far = es.filter(e => !e.isIntersecting && e.target.isConnected && screensAway(e.boundingClientRect) >= CFG.farScreens);
+      if (!far.length) return;
+      observer?.disconnect();
+      const sel = getSelection(), keep = sel.isCollapsed ? () => false : (r) => sel.containsNode(r, true);   // a selection stays whole
+      for (const { target } of far) {
+        nearEls.delete(target);
+        for (const r of target.querySelectorAll('zy-run')) if (!keep(r)) r.replaceWith(r.dataset.src);
+      }
+      observe();
+    }, { rootMargin: `${CFG.farScreens * 100}% 0px` });
+    nearIO.observe(el); farIO.observe(el);
   }
 
   function observe() {
@@ -590,6 +644,7 @@
   function stop() {
     active = false;
     observer?.disconnect(); observer = null;
+    nearIO?.disconnect(); farIO?.disconnect(); nearIO = farIO = null; nearEls = new WeakSet();
     queue.length = 0; pending = [];
     restoreAll();
   }
@@ -914,16 +969,21 @@
     .k{color:#8a6100;background:rgba(200,150,0,.13)}.r.sem{color:#1e7e34;background:rgba(30,126,52,.1)}.r.pho{color:#1a5fb4;background:rgba(26,95,180,.1)}
     .org a,.news a,.org.old .go:hover{color:#1a5fb4}.pal.on{outline-color:#1a5fb4}.gl .mk.on{color:#b07d00}.tabs button.on{background:rgba(26,95,180,.15)}.gl .cfg,.gl .mk,.tabs button{background:none}`
     .replace(/([^{}]+)\{/g, (_, sel) => sel.split(',').map(x => host + ' ' + x.trim()).join(',') + '{');
+  // "Popup size": every px in the popups' CSS is a multiple of --zs, set on the host. Not CSS zoom: a zoomed box
+  // scales its own left/top and vw, so placing it on screen would need the zoom undone in every measurement.
+  const scalePx = (css) => css.replace(/(-?\d*\.?\d+)px/g, 'calc($1px * var(--zs))');
+  const popScale = (h) => h.style.setProperty('--zs', CFG.popupScale / 100);
   let pop = null;
   function popup() {
     if (pop) return pop;
     const hostEl = document.createElement('div'); hostEl.id = 'zyh-host';
     hostEl.style.cssText = 'all:initial;position:fixed;z-index:2147483647;top:0;left:0;width:0;height:0';
-    hostEl.dataset.theme = CFG.theme; hostEl.dataset.ts = CFG.tintStyle;
+    hostEl.dataset.theme = CFG.theme; hostEl.dataset.ts = CFG.tintStyle; popScale(hostEl);
     const sh = hostEl.attachShadow({ mode: 'closed' });
     // Built with DOM calls and a <style> element, not innerHTML: pages that enforce Trusted Types block
     // innerHTML (also on a shadow root), and the popup would never appear there.
-    const css = el('style'); css.textContent = `
+    const css = el('style'); css.textContent = scalePx(`
+      svg{width:14px;height:14px}
       .box{position:fixed;max-width:min(460px,calc(100vw - 24px));padding:10px 12px;border-radius:10px;display:none;color-scheme:dark;
         font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#eee;background:rgba(22,22,24,.96);
         box-shadow:0 6px 28px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px)}
@@ -984,7 +1044,8 @@
       .gl .cfg:hover{opacity:1}
       .gl .hw{padding-right:22px}
       .gl .tl{font-size:17px;margin:2px 0 4px}
-      .set{width:min(380px,calc(100vw - 24px));box-sizing:border-box;max-height:calc(100vh - 16px);overflow:auto;font-size:13px}
+      .set{width:min(380px,calc(100vw - 24px));max-width:none;box-sizing:border-box;max-height:calc(100vh - 16px);overflow:auto;font-size:13px}
+      .tr,.gl{overflow:hidden auto}
       .set .ttl{display:flex;align-items:center;font-weight:600;margin-bottom:8px}
       .set .ttl span{flex:1}
       .set .row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:4px 0}
@@ -1041,7 +1102,7 @@
       .parts .part.go{display:grid;grid-template-columns:auto 1fr 12px;align-items:baseline}
       @media (prefers-color-scheme: light){${LIGHT(':host([data-theme=auto])')}}
       ${LIGHT(':host([data-theme=light])')}
-    `;
+    `);
     const icon = (...paths) => {
       const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
       for (const [k, v] of Object.entries({ viewBox: '0 0 16 16', width: 14, height: 14, fill: 'currentColor', 'aria-hidden': 'true' })) svg.setAttribute(k, v);
@@ -1127,20 +1188,33 @@
   // Below the anchor, else above it. The hover card also keeps off an open translation popup: below or
   // above the word if that's clear of it, else beside, below or above the popup; overlapping only if the
   // window is too small for any of those.
+  // Where a box opens depends only on where its anchor is on screen, never on what the box holds right now: in the
+  // upper half it opens below, in the lower half above, with the edge facing the anchor pinned (top or bottom), and
+  // never taller than the room on that side (it scrolls). Its left edge is the anchor's, moved left only as far as the
+  // box's widest possible size needs. So a box that grows as text arrives, or a smaller card opened from a bigger
+  // one, stays where the pointer is.
   function place(rect, b = pop.box) {
-    b.style.display = 'block'; b.style.left = '0px'; b.style.top = '0px';
-    const w = b.offsetWidth, h = b.offsetHeight, m = 8;
+    const st = b.style, m = 8, px = (v) => Math.round(v) + 'px';
     const g = b === pop.box ? m : 2;   // hover card hugs its word: less way to travel, fewer words to cross
-    const x = Math.min(Math.max(m, rect.left), innerWidth - w - m);
-    const below = rect.bottom + g, above = rect.top - h - g;
-    let spot = [x, below + h > innerHeight - m ? Math.max(m, above) : below];
-    if (b !== pop.box && pop.box.style.display === 'block') {
-      const t = pop.box.getBoundingClientRect(), y = Math.min(Math.max(m, rect.top), innerHeight - h - m);
+    st.display = 'block'; b.zyRect = rect;
+    if (b !== pop.box && pop.box.style.display === 'block') {   // settings next to the translation popup: a free spot around it
+      Object.assign(st, { left: '0px', top: '0px', right: 'auto', bottom: 'auto', maxHeight: '' });
+      const w = b.offsetWidth, h = b.offsetHeight, t = pop.box.getBoundingClientRect();
+      const x = Math.min(Math.max(m, rect.left), innerWidth - w - m), y = Math.min(Math.max(m, rect.top), innerHeight - h - m);
       const ok = ([sx, sy]) => sx >= m && sx + w <= innerWidth - m && sy >= m && sy + h <= innerHeight - m &&
         (sx >= t.right + m / 2 || sx + w <= t.left - m / 2 || sy >= t.bottom + m / 2 || sy + h <= t.top - m / 2);
-      spot = [[x, below], [x, above], [t.right + m, y], [t.left - w - m, y], [x, t.bottom + m], [x, t.top - h - m]].find(ok) ?? spot;
+      const spot = [[x, rect.bottom + g], [x, rect.top - h - g], [t.right + m, y], [t.left - w - m, y], [x, t.bottom + m], [x, t.top - h - m]].find(ok) ?? [x, y];
+      st.left = px(spot[0]); st.top = px(spot[1]);
+      return;
     }
-    b.style.left = spot[0] + 'px'; b.style.top = spot[1] + 'px';
+    const cs = getComputedStyle(b), sum = (...ks) => ks.reduce((a, k) => a + parseFloat(cs[k]), 0);
+    const content = cs.boxSizing !== 'border-box';   // the popups' max-width/max-height leave out padding and border
+    const edges = content ? sum('paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth') : 0;
+    const widest = parseFloat(cs.maxWidth) + (content ? sum('paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth') : 0) || b.offsetWidth;
+    const down = rect.top + rect.bottom < innerHeight;
+    Object.assign(st, down ? { top: px(rect.bottom + g), bottom: 'auto', maxHeight: px(innerHeight - rect.bottom - g - m - edges) }
+      : { top: 'auto', bottom: px(innerHeight - rect.top + g), maxHeight: px(rect.top - g - m - edges) });
+    Object.assign(st, { left: px(Math.max(m, Math.min(rect.left, innerWidth - widest - m))), right: 'auto' });
   }
 
   // Pinyin line for the popup, from the same segmenter so it matches the zhuyin on the page.
@@ -1274,8 +1348,12 @@
     hideT = setTimeout(() => {
       if (glossWord && (near(pop.gl.getBoundingClientRect()) || near(glossWord.getBoundingClientRect()))) scheduleHide();
       else hideGloss();
-    }, CFG.glossHideDelay);
+    }, Math.max(CFG.glossHideDelay, keepUntil - performance.now()));
   }
+  // A card opened from a card (a part, a character row, the crumb) can be smaller than the one clicked, leaving the
+  // pointer outside it: it gets glossKeep ms to reach it before the card hides.
+  let keepUntil = 0;
+  const openFromCard = (c) => { keepUntil = performance.now() + CFG.glossKeep; renderCard(c); };
 
   // The parts section of a one-character card: how it was formed, each part with its zhuyin, meaning and role
   // (click to open its card), the hint, the origin, and the characters it gives its sound to. False if there's
@@ -1406,11 +1484,11 @@
   }
   const pinned = () => shown('box') || (shown('gl') && !!card?.trail[0]?.sentence);
   // A crumb entry: a card, or the sentence the cards were opened from.
-  const goBack = (t, trail) => (t.sentence ? showTranslation(t.sentence, selRect) : renderCard({ ...t, trail }));
+  const goBack = (t, trail) => (t.sentence ? showTranslation(t.sentence, selRect) : openFromCard({ ...t, trail }));
   // A character's own card, opened from a part or a character row of the open card.
   function openChar(ch) {
     const z = loadDict().c[ch]?.[0][0];
-    renderCard({ chars: [ch], zys: z ? [z] : null, hi: -1, alts: null, rect: card.rect, trail: [...card.trail, card] });
+    openFromCard({ chars: [ch], zys: z ? [z] : null, hi: -1, alts: null, rect: card.rect, trail: [...card.trail, card] });
   }
   async function renderCard(c) {
     const p = popup(), req = ++glossReq, w = glossWord;
@@ -1498,7 +1576,7 @@
         row.append(ms);
         if (CFG.parts && HAN.test(ch)) {
           row.classList.add('go'); row.title = 'Open ' + ch; row.append(el('span', 'arr', '›'));
-          row.onclick = () => renderCard({ chars: [ch], zys: known ? [zys[i]] : null, hi: -1, alts: null, rect, trail: [...trail, c] });
+          row.onclick = () => openFromCard({ chars: [ch], zys: known ? [zys[i]] : null, hi: -1, alts: null, rect, trail: [...trail, c] });
         }
         parts.append(row);
       });
@@ -1626,6 +1704,7 @@
     '0.9.1': 'A character’s hint and origin come in your language too (Learn › Translate explanations).',
     '0.9.2': 'Select a sentence, then click › next to a word in its list to open that word’s card.',
     '0.9.3': 'When a character’s parts changed over time (年 was 禾 + 人), its card shows the older parts instead of misleading shapes.',
+    '0.9.4': 'Long pages stay fast: zhuyin is added near the screen as you scroll. Popups can be made bigger or smaller (Popups › Popup size), and cards no longer jump: they open on the same side every time.',
   };
   function whatsNew() {
     const seenV = GM_getValue('seenVersion', '') || '0', vs = Object.keys(NEWS).filter(v => newer(v, seenV) && !newer(v, VERSION));
@@ -1701,6 +1780,8 @@
     { tab: 'page', label: 'Highlight polyphones', k: 'showPolyphones', gm: 'poly', opts: onOff,
       apply: (v) => document.documentElement.classList.toggle('zyh-poly', v) },
     { tab: 'page', label: 'Buttons & popups', k: 'compactChrome', opts: [[true, 'compact'], [false, 'full zhuyin']], apply: () => { if (active) { stop(); start(); } } },
+    { tab: 'page', sec: 'Performance', label: 'Zhuyin is added', k: 'lazy', opts: [[true, 'near the screen'], [false, 'to the whole page']], apply: () => { if (active) { stop(); start(); } },
+      hint: 'Near the screen: a few screens ahead as you scroll, and taken off far behind, so long pages and the tint previews stay fast' },
     { tab: 'popups', label: 'Word gloss', k: 'gloss', opts: [['hover', 'hover'], ['alt', 'Alt'], ['off', 'off']], apply: hideGloss },
     { tab: 'popups', label: 'Zhuyin in popups', k: 'popupZhuyin', opts: [['beside', 'by each character'], ['after', 'after the word']],
       apply: () => { hideGloss(); retranslate(); }, hint: 'Word card, selected text and word list' },
@@ -1708,6 +1789,8 @@
     { tab: 'popups', label: 'Pinyin in translation', k: 'pinyin', opts: onOff, apply: retranslate },
     { tab: 'popups', label: 'Read aloud key', k: 'speakKey', ask: 'a letter, or Alt+ a letter (R, Alt+R…)', hint: 'Works while a word card or translation is open',
       list: [...[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(c => [c, c]), ...[...'ABCDEFGHIJKLMNOPQRSUVWXY'].map(c => ['Alt+' + c, 'Alt+' + c])] },   // Alt+Z, Alt+T are taken
+    { tab: 'popups', ui: true, label: 'Popup size', k: 'popupScale', range: [70, 200, 10], fmt: (v) => v + ' %', hint: 'Text, buttons and boxes of every popup and this panel',
+      apply: () => pop && popScale(pop.hostEl) },
     { tab: 'popups', label: 'Popup theme', k: 'theme', opts: [['auto', 'auto'], ['dark', 'dark'], ['light', 'light']], apply: (v) => { if (pop) pop.hostEl.dataset.theme = v; reTint(); } },
     { tab: 'translate', label: 'Translate to', k: 'targetLang', list: LANGS, free: true, ask: 'a Google language code or name (lt, en, Lithuanian…)', apply: () => { hideGloss(); retranslate(); },
       hint: 'Not English: word cards and word lists are translated by Google too' },
@@ -1763,9 +1846,9 @@
     previewWas ??= {};
     if (!CFG.tintTop && !(CFG.tintMine && CFG.myChars) && !('tintTop' in vals)) vals = { ...vals, tintTop: 100 };
     for (const [k, v] of Object.entries(vals)) { if (!(k in previewWas)) previewWas[k] = CFG[k]; CFG[k] = v; }
-    refreshTints();
+    refreshSoon();
   }
-  function endPreview() { if (!previewWas) return; Object.assign(CFG, previewWas); previewWas = null; refreshTints(); }
+  function endPreview() { if (!previewWas) return; Object.assign(CFG, previewWas); previewWas = null; refreshSoon(); }
   const hoverPreview = (b, vals) => { b.onmouseenter = () => preview(vals); b.onmouseleave = endPreview; };
 
   function looksCtl() {
@@ -1887,8 +1970,8 @@
     const keep = pop.set.scrollTop;
     pop.set.replaceChildren(...out);
     pop.set.scrollTop = keep;
-    // A tab can be taller than the one it was placed for: keep the panel on screen (it scrolls inside).
-    if (shown('set')) { const r = pop.set.getBoundingClientRect(); if (r.bottom > innerHeight - 8) pop.set.style.top = Math.max(8, innerHeight - 8 - r.height) + 'px'; }
+    // A tab can be taller than the one it was placed for, and a larger popup size wider: placed again.
+    if (shown('set')) place(pop.set.zyRect, pop.set);
   }
   // Next to the box whose ⚙ opened it (kept clear of an open translation popup), or top right from the menu.
   function openSettings(rect) {
