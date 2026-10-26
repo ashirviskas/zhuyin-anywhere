@@ -24,7 +24,8 @@ With the same Chromium, fonts and dictionaries, the output is byte-identical to 
 | File | What it is |
 |---|---|
 | `site.html` | A fictional blog page ("散步日記") used as the demo website: a header, nav, title, two paragraphs and a hidden newsletter pop-up. |
-| `poster.html` | The layout every image is cut from: practice-grid background, browser frames, and `class="live"` blocks that the userscript annotates itself. |
+| `hero.html` | The README's top image and the repository's social preview, 1280×640: the name, and a browser window with two annotated lines. |
+| `poster.html` | The layout every other image is cut from: practice-grid background, browser frames, and `class="live"` blocks that the userscript annotates itself. |
 | `build.js` | Renders everything; the steps are described below. |
 | `fetch-deps.sh` | Downloads `vendor/zhuyin-dict.js` and `vendor/cedict.gz`, the same files as the script's `@resource` lines. It then runs `fetch-fonts.py`. |
 | `fetch-fonts.py` | Downloads LXGW WenKai TC, Noto Sans TC and Literata from Google Fonts into `fonts/` and writes `fonts.css`, so rendering needs no network. |
@@ -50,7 +51,9 @@ With the same Chromium, fonts and dictionaries, the output is byte-identical to 
 | `modal-full.png` | Newsletter pop-up with `compactChrome: false` |
 | `modal-compact.png` | Newsletter pop-up with the default compact mode |
 
-**Stage 2: poster and README images** (`docs/img/`).
+**Stage 2: hero and social preview** (`docs/img/hero.png`, `docs/img/social-preview.png`). Opens `hero.html` at 1280 × 640, GitHub's social preview size. Everything stays inside the safe area of GitHub's repository-open-graph-template (x 80–1200, y 80–560), so no crop cuts it. Only the browser window is annotated (the rest is `translate="no"`). The mouse rests on 夜 so the card for 夜市 opens at popup size 175 %, big enough to read as a thumbnail; 茶 is one of My characters with `tintStrength: 70`, so the tint shows. **Staged:** the script keeps room for a card's widest possible size, which at 175 % would push it left over the name, so the build moves the card's left edge to 夜 and logs a warning if the card leaves the safe area. `hero.png` is the 2× screenshot for the README; `social-preview.png` is the same render at exactly 1280 × 640 (`scale: 'css'`), uploaded by hand in the repository's Settings → General → Social preview.
+
+**Stage 3: poster and README images** (`docs/img/`).
 - Opens `poster.html` at 1500 px wide.
 - Marks every non-`.live` element `translate="no"`, which the script skips.
 - Forces the script on with the setting `site:local files = on`, since the poster is a local file with little Chinese.
