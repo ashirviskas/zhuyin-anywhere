@@ -1,8 +1,8 @@
 # Zhuyin Anywhere
 
-<img src="docs/img/hero.png" alt="注音 written large, with its zhuyin symbols beside each character" width="360" align="right">
+<p align="center"><img src="docs/img/hero.png" alt="Zhuyin Anywhere: a browser window with 我們去夜市喝奶茶 and 到處都是人, zhuyin beside every character, 茶 tinted, and the card for 夜市 open: night market, 夜 night, 市 market" width="820"></p>
 
-**注音** is said **ㄓㄨˋ ㄧㄣ** (zhùyīn): *zhù* falling, *yīn* high and flat.
+**[Install](#install)** · New to zhuyin? Start with [Reading zhuyin](#reading-zhuyin).
 
 A Violentmonkey userscript for reading Taiwanese websites while learning Mandarin.
 
@@ -13,9 +13,9 @@ A Violentmonkey userscript for reading Taiwanese websites while learning Mandari
 
 Works in Firefox and Chrome on news sites, blogs, YouTube and anything else written in Traditional Chinese.
 
-**[Install](#install)** · New to zhuyin? Start with [Reading zhuyin](#reading-zhuyin).
+**注音** is said **ㄓㄨˋ ㄧㄣ** (zhùyīn): *zhù* falling, *yīn* high and flat.
 
-<br clear="right">
+**Contents:** [Install](#install) · [Quick start](#quick-start) · [Features](#features) · [Using it to learn](#using-it-to-learn) · [Reading zhuyin](#reading-zhuyin) · [Settings](#settings) · [The 100 most common characters](#the-100-most-common-characters) · [Known limitations](#known-limitations) · [More about installing](#more-about-installing) · [How it works](#how-it-works) · [Development](#development) · [Related](#related) · [Credits and license](#credits-and-license)
 
 ## Install
 

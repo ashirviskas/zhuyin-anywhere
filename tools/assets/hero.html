@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<title>Zhuyin Anywhere: hero</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+  /* The README's top image and the repository's social preview: 1280×640, GitHub's size. Everything stays inside
+     the safe area of GitHub's repository-open-graph-template, x 80–1200 and y 80–560, so no crop cuts it.
+     build.js points at 夜市 so its card opens. */
+  :root{--paper:#EAF1EC;--ink:#1F2D3A;--muted:#4E615C;--serif:"Literata",Georgia,serif}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{width:1280px;height:640px;overflow:hidden;position:relative;background:var(--paper);color:var(--ink);font:400 21px/1.5 var(--serif)}
+  .text{position:absolute;left:80px;top:178px;width:392px}
+  h1{font:700 76px/1 var(--serif);letter-spacing:-.015em;margin:0}
+  .text p{font-size:26px;line-height:1.4;color:var(--muted);margin:22px 0 0}
+  .frame{position:absolute;left:480px;top:80px;width:712px;height:472px;background:#fff;border:2px solid var(--ink);border-radius:10px;
+    box-shadow:8px 8px 0 var(--ink);overflow:hidden}
+  .bar{display:flex;align-items:center;gap:9px;height:40px;padding:0 16px;border-bottom:2px solid var(--ink);background:#EDF3EE}
+  .bar i{width:12px;height:12px;border-radius:50%;border:2px solid var(--muted)}
+  .page{padding:24px 34px;font:36px/1.9 "Noto Sans TC",sans-serif;color:#222}
+  .page p{margin:0}
+</style>
+</head>
+<body>
+  <div class="text"><h1>Zhuyin Anywhere</h1><p>Zhuyin and meanings on any Traditional Chinese page.</p></div>
+  <div class="frame">
+    <div class="bar"><i></i><i></i><i></i></div>
+    <div class="page live" id="live"><p>我們去夜市喝奶茶。</p><p>到處都是人。</p></div>
+  </div>
+</body>
+</html>

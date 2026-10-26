@@ -3,10 +3,12 @@
 //   node build.js            → shots/*.png (demo-site screenshots) + ../../docs/img/*.png (README images)
 //   node build.js --poster   → also out/poster.png (the whole poster.html as one tall image)
 //
-// Two stages:
+// Three stages:
 //   1. site.html (a fictional blog) is opened with and without the userscript, and the feature states
 //      (hover card, selection popup, pop-up modal) are triggered with the mouse → shots/*.png.
-//   2. poster.html embeds those shots, and also contains "live" blocks (class="live") that the userscript
+//   2. hero.html, the README's top image and the repo's social preview: the name, and a browser window with the
+//      card for 夜市 open → ../../docs/img/hero.png (2×) and social-preview.png (1280×640).
+//   3. poster.html embeds those shots, and also contains "live" blocks (class="live") that the userscript
 //      annotates itself (注音, 銀, the five tones, 行人/銀行). Red-pen callouts are positioned from the
 //      measured glyph boxes of that live output, then each section is clipped out → docs/img/*.png.
 //
@@ -177,7 +179,38 @@ async function shootDemo(browser) {
   console.log('shots/ done');
 }
 
-// ------------------------------------------------------------------ stage 2: poster + README images
+// ------------------------------------------------------------------ stage 2: hero / social preview
+// 1280×640, GitHub's social preview size: hero.png at 2× for the README, social-preview.png at exactly 1280×640
+// to upload in the repository's Settings → General → Social preview (limit 1 MB).
+async function heroImage(browser) {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 640 }, deviceScaleFactor: SCALE });
+  p.on('pageerror', (e) => console.log('pageerror', e.message));
+  await p.goto(fileUrl('hero.html'));
+  await p.evaluate(() => document.fonts.ready);
+  await p.evaluate(() => document.querySelectorAll('body *:not(.live)').forEach((e) => {   // only the browser window is annotated
+    if (!e.querySelector('.live') && !e.closest('.live')) e.setAttribute('translate', 'no');
+  }));
+  // a big card, readable as a thumbnail; 茶 as one of My characters, tinted strong enough to see
+  await injectUserscript(p, { 'site:local files': 'on', popupScale: 175, myChars: '茶', tintStrength: 70 });
+  const c = await charCenter(p, '夜市', 0);
+  await p.mouse.move(5, 5); await p.mouse.move(c.x, c.y); await p.waitForTimeout(1600);
+  // Staged: place() keeps room for the card's widest possible size, which at 175 % pushes it left over the name.
+  // Line its left edge up with 夜 instead; the check below keeps it inside GitHub's safe area (x 80–1200, y 80–560).
+  const box = await p.evaluate(() => {
+    const w = [...document.querySelectorAll('zy-w')].find((w) => w.textContent.startsWith('夜'));
+    const card = [...__sh.querySelectorAll('.gl')].find((e) => e.getBoundingClientRect().width);
+    card.style.left = Math.round(w.getBoundingClientRect().left) + 'px';
+    const r = card.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom].map(Math.round);
+  });
+  if (box[0] < 80 || box[1] < 80 || box[2] > 1200 || box[3] > 560) console.log('hero: card outside the safe area', box);
+  fs.mkdirSync(IMG_OUT, { recursive: true });
+  await p.screenshot({ path: path.join(IMG_OUT, 'hero.png') });
+  await p.screenshot({ path: path.join(IMG_OUT, 'social-preview.png'), scale: 'css' });
+  await p.close();
+  console.log('docs/img/hero.png, social-preview.png done');
+}
+
+// ------------------------------------------------------------------ stage 3: poster + README images
 async function renderPoster(browser) {
   const p = await browser.newPage({ viewport: { width: 1500, height: 1000 }, deviceScaleFactor: SCALE });
   p.on('pageerror', (e) => console.log('pageerror', e.message));
@@ -242,7 +275,6 @@ function drawCallouts() {
 // README images: one clip per example. All prose (headings, captions, URLs) is hidden first,
 // because the README carries the text; the images only show examples.
 const README_IMAGES = {
-  'hero':         () => document.querySelector('.title-zh'),
   'how-to-read':  () => document.getElementById('anat'),
   'tones':        () => document.querySelector('.trow'),
   'before-after': () => document.querySelectorAll('section')[1].querySelector('.pair'),
@@ -266,9 +298,8 @@ async function readmeImages(p) {
     const clip = await p.evaluate(([src, name]) => {
       const el = (0, eval)(`(${src})`)(), r = el.getBoundingClientRect();
       let pad = 36;
-      const extra = name === 'hero' ? 10 : 0;   // the hero box has an 8px offset shadow
       if (el.classList.contains('night')) pad = 0;   // night blocks draw their own dark margin
-      return { x: Math.max(0, r.left - pad), y: r.top + scrollY - pad, width: Math.min(1500, r.width + 2 * pad + extra), height: r.height + 2 * pad + extra };
+      return { x: Math.max(0, r.left - pad), y: r.top + scrollY - pad, width: Math.min(1500, r.width + 2 * pad), height: r.height + 2 * pad };
     }, [pick.toString(), name]);
     await p.screenshot({ path: path.join(IMG_OUT, name + '.png'), clip, fullPage: true });
   }
@@ -278,6 +309,7 @@ async function readmeImages(p) {
 (async () => {
   const browser = await chromium.launch();
   await shootDemo(browser);
+  await heroImage(browser);
   if (process.argv.includes('--poster')) {
     const p = await renderPoster(browser);
     fs.mkdirSync(path.join(HERE, 'out'), { recursive: true });
