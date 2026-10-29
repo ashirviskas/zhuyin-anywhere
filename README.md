@@ -39,6 +39,7 @@ The ⚙ button on any word card or translation box opens the [settings](#setting
 | <kbd>Alt</kbd>+<kbd>T</kbd> | Translate the selection (when automatic translation is off) |
 | <kbd>R</kbd> | Read the open word card, or else the translation box, aloud; again to stop. Only while one is open and you aren't typing; otherwise the key goes to the page. The letter is a setting, and so is whether it needs <kbd>Alt</kbd> (<kbd>Alt</kbd>+<kbd>R</kbd>). |
 | <kbd>Shift</kbd> (held) | Show the meanings while **Hide meaning** is on. The key is a setting: <kbd>Shift</kbd>, <kbd>Alt</kbd> or <kbd>Ctrl</kbd>. |
+| <kbd>Shift</kbd> <kbd>Shift</kbd> | Double-tap, with a card or translation box open: switch **Hide meaning** on or off. Saved. |
 | <kbd>Esc</kbd> | Close the translation box, word card or settings, and stop reading aloud |
 
 ## Features
@@ -139,6 +140,8 @@ How to use it:
 3. Press <kbd>R</kbd> to hear it read aloud (press again to stop).
 4. Hold <kbd>Shift</kbd> to see the meaning. Let go and it's blurred again.
 
+To switch **Hide meaning** on or off without the settings, double-tap <kbd>Shift</kbd> while a card or translation box is open.
+
 On a touch screen, press and hold the blurred text instead. The reveal key can be <kbd>Shift</kbd>, <kbd>Alt</kbd> or <kbd>Ctrl</kbd> (**Reveal key**), and the read-aloud key can be another letter, with or without <kbd>Alt</kbd> (**Read aloud key**).
 
 <p align="center"><img src="docs/img/hide-meaning.png" alt="The same translation box twice: on the left the translations and word meanings are blurred, the Chinese and zhuyin readable; on the right, with Shift held, everything is readable" width="820"></p>
@@ -225,7 +228,7 @@ The ⚙ button on the word card and in the translation box opens the settings, i
 | Learn | Covers | `character` (default) or `character + zhuyin` |
 | Learn | Palette | Pastel (default), Vivid, Earth, Ocean, Forest, Sunset, Berry, Mono, Colour-blind safe |
 | Learn | Strength | How strong the tint is, 35 % by default |
-| Learn | Hide meaning | Off (default), or on: translations are blurred until the reveal key is held |
+| Learn | Hide meaning | Off (default), or on: translations are blurred until the reveal key is held. A double tap of the reveal key on an open card or box switches it. |
 | Learn | Reveal key | <kbd>Shift</kbd> (default), <kbd>Alt</kbd> or <kbd>Ctrl</kbd> |
 
 Violentmonkey's menu has the Page, Popups and Translate settings (but Popup size), Hide meaning and Reveal key; the rest of Learn is only in the panel.

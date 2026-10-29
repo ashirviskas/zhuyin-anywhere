@@ -137,5 +137,40 @@ const OUT = outDir(__filename);
   await p.screenshot({ path: OUT + '/11-settings-80.png' });
   await p.close();
 
+  // 9. Panel from a card's ⚙: as tall as its tab wherever the card was, not capped to the room beside the card
+  for (const pad of [0, 120, 260]) {
+    p = await page(browser);
+    await p.evaluate((h) => { const s = document.createElement('div'); s.style.height = h + 'px'; document.body.prepend(s); }, pad);
+    await p.waitForTimeout(300);
+    await hover(p, '珍珠奶茶');
+    await sh(p, `$('.gl .cfg').click()`); await p.waitForTimeout(200);
+    const s = await sh(p, `(() => { const e = $('.set'), r = e.getBoundingClientRect(); return { h: r.height, sh: e.scrollHeight, in: r.top >= 0 && r.bottom <= innerHeight }; })()`);
+    ok(s.sh <= s.h + 1 && s.in, `card ${pad}px down: panel full height on screen (${s.h.toFixed(0)} of ${s.sh} px)`);
+    if (pad === 120) await p.screenshot({ path: OUT + '/12-panel-from-card.png' });
+    await p.close();
+  }
+
+  // 10. Double-tap the reveal key on an open popup switches Hide meaning; not without a popup, not Shift, letter, Shift
+  p = await page(browser, { targetLang: 'lt' });
+  await p.keyboard.press('Shift'); await p.keyboard.press('Shift'); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => !__st.hideMeaning), 'double Shift with nothing open: no change');
+  await select(p);
+  await p.keyboard.press('Shift'); await p.keyboard.press('Shift'); await p.waitForTimeout(300);
+  ok(await p.evaluate(() => __st.hideMeaning === true) && await sh(p, `__sh.host.hasAttribute('data-hide') && $('.via').textContent.endsWith('hold Shift')`), 'double Shift: Hide meaning on, blurred');
+  await p.keyboard.press('Shift'); await p.keyboard.press('Shift+KeyA'); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => __st.hideMeaning === true), 'Shift, Shift+A: no change');
+  await p.keyboard.down('Shift'); await p.waitForTimeout(600); await p.keyboard.up('Shift'); await p.keyboard.press('Shift'); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => __st.hideMeaning === true), 'Shift held to read, then a tap: no change');
+  await p.waitForTimeout(500);
+  await p.keyboard.press('Shift'); await p.keyboard.press('Shift'); await p.waitForTimeout(300);
+  ok(await p.evaluate(() => __st.hideMeaning === false) && await sh(p, `!__sh.host.hasAttribute('data-hide') && !$('.via').textContent.includes('hold')`), 'double Shift again: off, shown');
+  await p.close();
+  p = await page(browser, { hideMeaning: true });
+  await hover(p, '珍珠奶茶');
+  ok(await sh(p, `$('.gl .foot').textContent.endsWith('hold Shift')`), 'card: hold hint');
+  await p.keyboard.press('Shift'); await p.keyboard.press('Shift'); await p.waitForTimeout(300);
+  ok(await p.evaluate(() => __st.hideMeaning === false) && await sh(p, `$('.gl').style.display === 'block' && !$('.gl .foot').textContent.includes('hold')`), 'double Shift on a card: off, card stays, hint gone');
+  await p.close();
+
   await done(browser);
 })();
