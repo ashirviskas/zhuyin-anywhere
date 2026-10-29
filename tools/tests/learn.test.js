@@ -183,7 +183,7 @@ const learn = async (p) => { await p.evaluate(() => __menu.find(m => m[0] === 'S
   // 6. What's new: once after an update, on the first page the script runs on
   p = await page(browser, { seenVersion: '0.8.0' });
   ok(await sh(p, `$('.news').style.display === 'block' && $('.news a').href.endsWith('CHANGELOG.md#' + '${VERSION}'.replaceAll('.', ''))`), "what's new: shown after an update, links to the changelog");
-  ok(await sh(p, `$$('.news p').length === 5`), "what's new: every version since the last one seen (0.9.0 to 0.9.4)");
+  ok(await sh(p, `$$('.news p').length === 6`), "what's new: every version since the last one seen (0.9.0 to 0.9.5)");
   await p.screenshot({ path: OUT + '/10-whats-new.png' });
   await sh(p, `$$('.news button').find(b => b.textContent === 'Open Learn settings').click()`); await p.waitForTimeout(200);
   ok(await p.evaluate((v) => __st.seenVersion === v, VERSION) && await sh(p, `$('.news').style.display === 'none' && $('.set .tabs .on').textContent === 'Learn'`), "what's new: button opens the Learn tab, note put away for good");

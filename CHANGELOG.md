@@ -2,6 +2,17 @@
 
 Newest first. Versions are the userscript's `@version`; each entry lists the commits that make it up.
 
+## 0.9.5
+
+**Hide meaning from the keyboard.** Double-tap <kbd>Shift</kbd> (the reveal key) while a card or translation box is open to switch **Hide meaning** on or off.
+
+**Settings open full size.** The settings panel opened from a word card is as tall as its tab again, not a few scrolling lines squeezed beside the card.
+
+### `<hash>` · 2026-10-29 · TASK-010 fix(settings): Open the panel full height, double-tap the reveal key to switch Hide meaning
+
+- `place()`: the settings panel always takes the free-spot path (below, then above its opener, clear of an open translation popup, else overlapping it), with no height cap but the window's. Before, from a word card it took the card path: capped to the room above or below the whole card, 200 px of 459 on a 600 px window.
+- Reveal key: two taps (press under 300 ms, no other key between) released within 400 ms, while a card or translation box is open and not typing → `setCfg(hideMeaning)`, so it's saved and the menu follows. The card is redrawn so its "hold Shift" hint follows too.
+
 ## 0.9.4
 
 **Long pages stay fast.** Zhuyin is now added only near the screen: a few screens ahead as you scroll, and taken off again far behind. On a whole book (*Le Petit Prince*, 21,000 characters) hovering the tint looks in the settings used to freeze the page for up to 4 seconds at a time; now it doesn't. Set **Page › Zhuyin is added** to `to the whole page` for the old behaviour.

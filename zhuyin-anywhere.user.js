@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         注音 anywhere (Traditional Mandarin → zhuyin + select-to-translate)
 // @namespace    local.zhuyin-anywhere
-// @version      0.9.4
+// @version      0.9.5
 // @description  Annotates Traditional Chinese on any page with textbook-style zhuyin (word-segmented, Taiwan readings from McBopomofo via yt-zhuyin's dictionary). Hover a word for its meaning (CC-CEDICT, or Google in other languages); select text to translate it into English, Lithuanian or another language. Speaker buttons read words and selections aloud in Taiwan Mandarin. ⚙ on the popups opens the settings.
 // @match        *://*/*
 // @match        file:///*
@@ -75,7 +75,7 @@
  * 13. Notes: "what's new" once after an update; "update available" when main's @version is newer (checked daily).
  *
  * Hotkeys: Alt+Z cycles zhuyin on page (on → hover → off) · Alt (held) + hover shows gloss in 'alt' mode · Alt+T translate selection (when autoTranslate is off) ·
- *          R (configurable, Alt optional) read the open card or popup aloud · Shift (configurable, held) shows hidden meanings · Esc closes popups and stops reading aloud
+ *          R (configurable, Alt optional) read the open card or popup aloud · Shift (configurable, held) shows hidden meanings, double-tapped on an open card or popup switches Hide meaning · Esc closes popups and stops reading aloud
  */
 
 (() => {
@@ -1163,7 +1163,9 @@
   const shown = (b) => pop?.[b].style.display === 'block';
 
   // "Hide meaning": translations carry class .m and are blurred unless the reveal key or the pointer is held.
-  let revealKeyDown = false, revealPtr = false;
+  // A double tap of the reveal key, with a card or popup open, switches Hide meaning itself. A tap is a short press
+  // and release with no other key between: not Shift, Shift+A (typing a capital), nor a hold to read, then a tap.
+  let revealKeyDown = false, revealPtr = false, revealTap = 0, revealAt = 0;   // revealAt: when a clean press began
   const reveal = () => pop?.hostEl.toggleAttribute('data-hide', CFG.hideMeaning && !revealKeyDown && !revealPtr);
   const KEY_NAMES = { Shift: 'Shift', Alt: 'Alt', Control: 'Ctrl' };
   const holdHint = () => (CFG.hideMeaning ? ' · hold ' + KEY_NAMES[CFG.revealKey] : '');
@@ -1193,17 +1195,20 @@
   // never taller than the room on that side (it scrolls). Its left edge is the anchor's, moved left only as far as the
   // box's widest possible size needs. So a box that grows as text arrives, or a smaller card opened from a bigger
   // one, stays where the pointer is.
+  // The settings panel is the exception: always as tall as its tab (up to the window), in a free spot next to
+  // the box whose ⚙ opened it. Capped to the room beside a big word card it was a few lines tall.
   function place(rect, b = pop.box) {
     const st = b.style, m = 8, px = (v) => Math.round(v) + 'px';
     const g = b === pop.box ? m : 2;   // hover card hugs its word: less way to travel, fewer words to cross
+    const box = pop.box.style.display === 'block';
     st.display = 'block'; b.zyRect = rect;
-    if (b !== pop.box && pop.box.style.display === 'block') {   // settings next to the translation popup: a free spot around it
+    if (b === pop.set || (b !== pop.box && box)) {   // a free spot around the anchor, clear of an open translation popup
       Object.assign(st, { left: '0px', top: '0px', right: 'auto', bottom: 'auto', maxHeight: '' });
-      const w = b.offsetWidth, h = b.offsetHeight, t = pop.box.getBoundingClientRect();
+      const w = b.offsetWidth, h = b.offsetHeight, t = box ? pop.box.getBoundingClientRect() : null;
       const x = Math.min(Math.max(m, rect.left), innerWidth - w - m), y = Math.min(Math.max(m, rect.top), innerHeight - h - m);
       const ok = ([sx, sy]) => sx >= m && sx + w <= innerWidth - m && sy >= m && sy + h <= innerHeight - m &&
-        (sx >= t.right + m / 2 || sx + w <= t.left - m / 2 || sy >= t.bottom + m / 2 || sy + h <= t.top - m / 2);
-      const spot = [[x, rect.bottom + g], [x, rect.top - h - g], [t.right + m, y], [t.left - w - m, y], [x, t.bottom + m], [x, t.top - h - m]].find(ok) ?? [x, y];
+        (!t || sx >= t.right + m / 2 || sx + w <= t.left - m / 2 || sy >= t.bottom + m / 2 || sy + h <= t.top - m / 2);
+      const spot = [[x, rect.bottom + g], [x, rect.top - h - g], ...(t ? [[t.right + m, y], [t.left - w - m, y], [x, t.bottom + m], [x, t.top - h - m]] : [])].find(ok) ?? [x, y];
       st.left = px(spot[0]); st.top = px(spot[1]);
       return;
     }
@@ -1659,12 +1664,19 @@
   document.addEventListener('mousedown', (e) => { if (!pop || !e.composedPath().includes(pop.hostEl)) { hidePopup(); hideGloss(); hideSettings(); } }, true);
   document.addEventListener('keyup', (e) => {
     if (e.key === CFG.revealKey && revealKeyDown) { revealKeyDown = false; reveal(); }
+    if (e.key === CFG.revealKey) {
+      const now = performance.now(), tap = revealAt && now - revealAt < 300;
+      const dbl = tap && now - revealTap < 400 && (shown('gl') || shown('box')) && !typing(e);
+      revealTap = tap && !dbl ? now : 0; revealAt = 0;
+      if (dbl) setCfg(SETTINGS.find(r => r.k === 'hideMeaning'), !CFG.hideMeaning);
+    }
     // Alt alone toggles Firefox's menu bar on release: keep it shut when the Alt press was ours.
     if (e.key === 'Alt' && ((CFG.gloss === 'alt' && hoverWord) || (CFG.hideMeaning && CFG.revealKey === 'Alt' && (shown('box') || shown('gl'))))) e.preventDefault();
   }, true);
   addEventListener('blur', () => { if (revealKeyDown) { revealKeyDown = false; reveal(); } });   // released in another window
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { hidePopup(); hideGloss(); hideSettings(); stopSpeaking(); }
+    if (e.key === CFG.revealKey) { if (!e.repeat) revealAt = performance.now(); } else { revealAt = 0; revealTap = 0; }
     if (e.key === CFG.revealKey && CFG.hideMeaning && !revealKeyDown) { revealKeyDown = true; reveal(); }   // no return: Alt may also open the card
     if (e.key === 'Alt' && CFG.gloss === 'alt' && hoverWord && !e.repeat) { e.preventDefault(); showGloss(hoverWord, null); return; }
     // Read-aloud key, with or without Alt; Shift is allowed, it may be the reveal key. Only while a card or
@@ -1705,6 +1717,7 @@
     '0.9.2': 'Select a sentence, then click › next to a word in its list to open that word’s card.',
     '0.9.3': 'When a character’s parts changed over time (年 was 禾 + 人), its card shows the older parts instead of misleading shapes.',
     '0.9.4': 'Long pages stay fast: zhuyin is added near the screen as you scroll. Popups can be made bigger or smaller (Popups › Popup size), and cards no longer jump: they open on the same side every time.',
+    '0.9.5': 'Double-tap the reveal key (Shift) on an open card or popup to switch Hide meaning on or off. The settings panel opens full height.',
   };
   function whatsNew() {
     const seenV = GM_getValue('seenVersion', '') || '0', vs = Object.keys(NEWS).filter(v => newer(v, seenV) && !newer(v, VERSION));
@@ -1812,8 +1825,8 @@
     { tab: 'learn', ui: true, live: true, label: 'Covers', k: 'tintCovers', opts: [['char', 'character'], ['both', 'character + zhuyin']], apply: reTint },
     { tab: 'learn', ui: true, live: true, label: 'Palette', k: 'tintPalette', render: palettesCtl, apply: reTint },
     { tab: 'learn', ui: true, label: 'Strength', k: 'tintStrength', range: [5, 100, 5], fmt: (v) => v + ' %', apply: reTint, extra: sampleCtl },
-    { tab: 'learn', sec: 'Practice', label: 'Hide meaning', k: 'hideMeaning', opts: onOff, apply: () => { reveal(); retranslate(); },
-      hint: 'Popups still open and read aloud; translations stay blurred until the reveal key is held' },
+    { tab: 'learn', sec: 'Practice', label: 'Hide meaning', k: 'hideMeaning', opts: onOff, apply: () => { reveal(); retranslate(); rerenderCard(); },
+      hint: 'Popups still open and read aloud; translations stay blurred until the reveal key is held. Double-tap the reveal key on an open card or popup to switch' },
     { tab: 'learn', label: 'Reveal key', k: 'revealKey', opts: Object.entries(KEY_NAMES), apply: retranslate },
   ];
   const getCfg = (r) => (r.get ? r.get() : CFG[r.k]);
